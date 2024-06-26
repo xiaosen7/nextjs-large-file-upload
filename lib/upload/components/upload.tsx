@@ -3,6 +3,7 @@
 import { Loading } from "@/shared/components/loading";
 import { Input } from "@/shared/components/ui/input";
 import { Progress } from "@/shared/components/ui/progress";
+import { mp } from "@/shared/utils/jsx";
 import {
   CheckIcon,
   ExclamationTriangleIcon,
@@ -10,14 +11,19 @@ import {
   PlayIcon,
   ReloadIcon,
   RocketIcon,
+  TrashIcon,
 } from "@radix-ui/react-icons";
 import { useCreation, useMemoizedFn } from "ahooks";
 import { sentenceCase } from "change-case";
-import { get } from "lodash-es";
+import { get, set, uniqueId } from "lodash-es";
 import { useObservable } from "rcrx";
-import React, { useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useRef, useState } from "react";
 import { Observable, throttleTime } from "rxjs";
 import { IUploadClientActions, UploadClient } from "../models/client";
+
+interface IFile extends File {
+  id: string;
+}
 
 const AUTO_UPLOAD = true;
 
@@ -26,13 +32,16 @@ export interface IUploaderProps {
 }
 
 export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<IFile[]>([]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainer = scrollContainerRef.current;
 
   const onChange = useMemoizedFn((async (e) => {
-    const files = Array.from(e.target.files ?? []);
+    const files = Array.from(e.target.files ?? []).map(
+      (file) => set(file, "id", uniqueId()) as IFile
+    );
+
     setFiles((pre) => [...pre, ...files]);
 
     if (scrollContainer) {
@@ -49,11 +58,14 @@ export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
       <Input multiple type="file" onChange={onChange} />
 
       <div ref={scrollContainerRef} className="h-64 overflow-auto">
-        {files.map((file, index) => (
+        {files.map((file) => (
           <UploadSingleFile
-            key={file.name + index}
+            key={file.id}
             actions={actions}
             file={file}
+            onRemove={() =>
+              setFiles((pre) => pre.filter((x) => x.id !== file.id))
+            }
           />
         ))}
       </div>
@@ -62,42 +74,56 @@ export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
 };
 
 interface IUploaderStateProps {
-  file: File;
+  file: IFile;
   actions: IUploadClientActions;
+  className?: string;
+  onRemove?: () => void;
 }
-function UploadSingleFile(props: IUploaderStateProps) {
-  const { file, actions } = props;
+const UploadSingleFile = memo(function UploadSingleFile(
+  props: IUploaderStateProps
+) {
+  const { file, actions, onRemove } = props;
+  const needCreateRef = useRef(false);
 
-  const ui = useCreation(
-    () => new UploadClient(file, actions),
-    [file, actions]
-  );
+  const client = useCreation(() => {
+    console.log("new client");
+    return new UploadClient(file, actions);
+  }, [file, actions, needCreateRef.current]);
 
   useEffect(() => {
-    ui.start(AUTO_UPLOAD);
-  }, [ui]);
+    client.start(AUTO_UPLOAD);
+  }, [client]);
 
   const onPlay = useMemoizedFn(() => {
-    ui.startPool();
+    client.startPool();
   });
 
   const onStop = useMemoizedFn(() => {
-    ui.stopPool();
+    client.stopPool();
   });
 
   const onRestart = useMemoizedFn(() => {
-    ui.restart(AUTO_UPLOAD);
+    client.restart(AUTO_UPLOAD);
   });
 
   const state = useObservable(
-    ui.state$.pipe(
+    client.state$.pipe(
       throttleTime(200, undefined, { leading: false, trailing: true })
     ),
-    ui.state$.value
+    client.state$.value
   );
-  const error = useObservable(ui.error$, null);
+  const error = useObservable(client.error$, null);
 
-  return (
+  useEffect(() => {
+    return () => {
+      console.log("destroy");
+      client.destroy();
+      needCreateRef.current = true;
+    };
+  }, [client]);
+
+  return mp(
+    props,
     <div className="py-2">
       <div
         title={file.name}
@@ -114,20 +140,22 @@ function UploadSingleFile(props: IUploaderStateProps) {
           ) : undefined}
         </span>
       </div>
+
       <div className="flex gap-2 items-center">
-        <RxProgress value$={ui.progress$} />
+        <RxProgress value$={client.progress$} />
         <div className="w-16 flex items-center justify-center">
           <UploaderController
-            state$={ui.state$}
+            state$={client.state$}
             onPlay={onPlay}
             onStop={onStop}
             onRestart={onRestart}
           />
         </div>
+        <TrashIcon className="cursor-pointer" onClick={onRemove} />
       </div>
     </div>
   );
-}
+});
 
 interface IUploaderControllerProps {
   onPlay?: () => void;

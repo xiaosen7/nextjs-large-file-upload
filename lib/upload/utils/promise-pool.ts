@@ -28,8 +28,8 @@ export class PromisePool<TData = any, TValue = any> {
   progress$ = new BehaviorSubject<number>(0);
   error$ = new Subject();
 
+  #destroyed = false;
   #results: Array<IPromisePoolResult<TValue>> = [];
-
   #activeDataIndices = new Set<number>();
   #isPoolFull = false;
   #stopPromise: Promise<void> | null = null;
@@ -89,6 +89,10 @@ export class PromisePool<TData = any, TValue = any> {
     let finished = 0;
     const total = promises.length;
     while (index < total) {
+      if (this.#destroyed) {
+        return this.#results;
+      }
+
       if (this.#stopPromise) {
         await this.#stopPromise;
       }
@@ -185,4 +189,12 @@ export class PromisePool<TData = any, TValue = any> {
   }
 
   //#endregion
+
+  destroy() {
+    this.#destroyed = true;
+    this.#stopPromise = null;
+    this.state$.complete();
+    this.progress$.complete();
+    this.error$.complete();
+  }
 }

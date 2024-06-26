@@ -89,7 +89,7 @@ export class UploadClient {
   }
 
   async #run(autoUpload = false) {
-    this.#pool?.stop();
+    // this.#pool?.destroy();
     this.#pool = null;
     this.#subscription.unsubscribe();
     this.#subscription = new Subscription();
@@ -134,10 +134,6 @@ export class UploadClient {
     }
   }
 
-  start = once(this.#run);
-
-  restart = this.#run;
-
   #handleError = (error: unknown) => {
     this.state$.next(EUploadClientState.Error);
     this.error$.next(error);
@@ -155,6 +151,10 @@ export class UploadClient {
     return chunks;
   }
 
+  start = once(this.#run);
+
+  restart = this.#run;
+
   startPool() {
     if (this.#pool) {
       this.#pool.start();
@@ -167,5 +167,10 @@ export class UploadClient {
       this.#pool.stop();
       this.state$.next(EUploadClientState.UploadStopped);
     }
+  }
+
+  destroy() {
+    this.#subscription.unsubscribe();
+    this.#pool?.destroy();
   }
 }
