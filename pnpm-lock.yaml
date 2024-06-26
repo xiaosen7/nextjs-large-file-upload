@@ -35,6 +35,9 @@ dependencies:
   crypto:
     specifier: ^1.0.1
     version: 1.0.1
+  filesize:
+    specifier: ^10.1.2
+    version: 10.1.2
   lodash-es:
     specifier: ^4.17.21
     version: 4.17.21
@@ -2357,6 +2360,11 @@ packages:
     dependencies:
       flat-cache: 3.2.0
     dev: true
+
+  /filesize@10.1.2:
+    resolution: {integrity: sha512-Dx770ai81ohflojxhU+oG+Z2QGvKdYxgEr9OSA8UVrqhwNHjfH9A8f5NKfg83fEH8ZFA5N5llJo5T3PIoZ4CRA==}
+    engines: {node: '>= 10.4.0'}
+    dev: false
 
   /fill-range@7.1.1:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}

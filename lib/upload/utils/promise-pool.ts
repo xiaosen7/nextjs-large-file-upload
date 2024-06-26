@@ -73,9 +73,7 @@ export class PromisePool<TData = any, TValue = any> {
   }
 
   #loop = once(async () => {
-    const { process } = this.options;
-
-    const { concurrency, data } = this.options;
+    const { concurrency, data, process } = this.options;
     const promises = data.map((data, index) => () => process(data, index));
 
     const pool: Set<
@@ -159,7 +157,6 @@ export class PromisePool<TData = any, TValue = any> {
 
     this.#resultPromise = this.#loop();
 
-    this.#resultPromise;
     return this.#resultPromise;
   }
 
