@@ -34,6 +34,10 @@ export class UploadSlicer {
     );
   }
 
+  async #rmRoot() {
+    await this.storage.rmdir(this.#rootDir);
+  }
+
   async merge() {
     const chunkIndices = (await this.storage.readdir(this.#chunksDir))
       .map((x) => Number(x))
@@ -41,16 +45,19 @@ export class UploadSlicer {
 
     const totalChunks = chunkIndices.length;
     if (totalChunks < 1) {
+      await this.#rmRoot();
       throw new Error("no chunks found");
     }
 
     if (chunkIndices[0] !== 0) {
+      await this.#rmRoot();
       throw new Error("chunk sequence is not correct");
     }
 
     // check the sequence is correct
     for (let i = 0; i < totalChunks - 1; i++) {
       if (chunkIndices[i] + 1 !== chunkIndices[i + 1]) {
+        await this.#rmRoot();
         throw new Error("chunk sequence is not correct");
       }
     }

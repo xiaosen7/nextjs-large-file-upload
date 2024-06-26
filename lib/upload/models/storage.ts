@@ -12,6 +12,7 @@ export abstract class UploadStorage {
   abstract createWriteStream(path: string): Promise<Writable>;
   abstract createReadStream(path: string): Promise<Readable>;
   abstract readdir(path: string): Promise<string[]>;
+  abstract rmdir(path: string): Promise<void>;
 
   async merge(sourceFilePaths: string[], destFilePath: string): Promise<void> {
     const output = await this.createWriteStream(destFilePath);

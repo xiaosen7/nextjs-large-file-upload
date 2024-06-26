@@ -41,7 +41,12 @@ export class UploadClient {
   #pool: PromisePool<Blob, void> | null = null;
   #subscription = new Subscription();
 
-  constructor(private file: File, private actions: IUploadClientActions) {}
+  constructor(
+    private file: File,
+    private actions: IUploadClientActions,
+    private concurrency = CONCURRENCY,
+    private chunkSize = CHUNK_SIZE
+  ) {}
 
   #calcHash = once(async () => {
     const chunks = this.#split();
@@ -72,7 +77,7 @@ export class UploadClient {
   #createUploadChunksPool(hash: string, chunks: Blob[]) {
     this.#pool = new PromisePool({
       data: chunks,
-      concurrency: CONCURRENCY,
+      concurrency: this.concurrency,
       process: async (chunk, index) => {
         const exists = await this.actions.chunkExists(hash, index);
         if (!exists) {
@@ -140,13 +145,13 @@ export class UploadClient {
     this.#pool?.stop();
   };
 
-  #split(chunkSize = CHUNK_SIZE) {
+  #split() {
     const chunks: Blob[] = [];
     let cur = 0;
     while (cur < this.file.size) {
-      const piece = this.file.slice(cur, cur + chunkSize);
+      const piece = this.file.slice(cur, cur + this.chunkSize);
       chunks.push(piece);
-      cur += chunkSize;
+      cur += this.chunkSize;
     }
     return chunks;
   }

@@ -77,6 +77,10 @@ export class MemoryStorage extends UploadStorage {
     return Object.keys(get(data, splitPath(path), {}));
   }
 
+  async rmdir(path: string): Promise<void> {
+    set(data, splitPath(path), {});
+  }
+
   async createReadStream(path: string): Promise<Readable> {
     return new MemoryReadableStream(get(data, splitPath(path)));
   }

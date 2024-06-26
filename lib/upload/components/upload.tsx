@@ -13,13 +13,15 @@ import {
   RocketIcon,
   TrashIcon,
 } from "@radix-ui/react-icons";
-import { useCreation, useMemoizedFn } from "ahooks";
+import { useCreation, useLocalStorageState, useMemoizedFn } from "ahooks";
 import { sentenceCase } from "change-case";
 import { get, set, uniqueId } from "lodash-es";
 import { useObservable } from "rcrx";
 import React, { memo, useEffect, useRef, useState } from "react";
 import { Observable, throttleTime } from "rxjs";
+import { CHUNK_SIZE, CONCURRENCY } from "../constants";
 import { IUploadClientActions, UploadClient } from "../models/client";
+import { IUploadSetting, UploadSetting } from "./setting";
 
 interface IFile extends File {
   id: string;
@@ -27,12 +29,21 @@ interface IFile extends File {
 
 const AUTO_UPLOAD = true;
 
-export interface IUploaderProps {
+export interface IUploadProps {
   actions: IUploadClientActions;
 }
 
-export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
+export const Upload: React.FC<IUploadProps> = ({ actions }) => {
   const [files, setFiles] = useState<IFile[]>([]);
+  const [setting, setSetting] = useLocalStorageState<IUploadSetting>(
+    "uploadSetting",
+    {
+      defaultValue: {
+        chunkSize: CHUNK_SIZE,
+        concurrency: CONCURRENCY,
+      },
+    }
+  );
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainer = scrollContainerRef.current;
@@ -55,7 +66,14 @@ export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
 
   return (
     <div className="flex flex-col gap-4 border border-solid p-4">
-      <Input multiple type="file" onChange={onChange} />
+      <div className="flex gap-4">
+        <Input className="flex-1" multiple type="file" onChange={onChange} />{" "}
+        <UploadSetting
+          value={setting}
+          onChange={setSetting}
+          disabled={files.length > 0}
+        />
+      </div>
 
       <div ref={scrollContainerRef} className="h-64 overflow-auto">
         {files.map((file) => (
@@ -66,6 +84,7 @@ export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
             onRemove={() =>
               setFiles((pre) => pre.filter((x) => x.id !== file.id))
             }
+            {...setting}
           />
         ))}
       </div>
@@ -73,21 +92,23 @@ export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
   );
 };
 
-interface IUploaderStateProps {
+interface IUploadSingleFileProps {
   file: IFile;
   actions: IUploadClientActions;
   className?: string;
   onRemove?: () => void;
+  concurrency?: number;
+  chunkSize?: number;
 }
 const UploadSingleFile = memo(function UploadSingleFile(
-  props: IUploaderStateProps
+  props: IUploadSingleFileProps
 ) {
-  const { file, actions, onRemove } = props;
+  const { file, actions, onRemove, concurrency, chunkSize } = props;
   const destroyedRef = useRef(false);
 
   const client = useCreation(() => {
-    return new UploadClient(file, actions);
-  }, [file, actions, destroyedRef.current]);
+    return new UploadClient(file, actions, concurrency, chunkSize);
+  }, [file, actions, destroyedRef.current, concurrency, chunkSize]);
 
   useEffect(() => {
     client.start(AUTO_UPLOAD);

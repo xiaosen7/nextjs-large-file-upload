@@ -11,5 +11,8 @@ export const GitLog: React.FC<{}> = (props) => {
       .then((res) => res.text())
       .then(setLog);
   }, []);
-  return mp(props, <div className="text-gray-500 text-xs">{log}</div>);
+  return mp(
+    props,
+    <div className="text-gray-500 text-xs text-center">{log}</div>
+  );
 };

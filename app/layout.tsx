@@ -19,10 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={cn(
-          inter.className,
-          "flex h-screen -mt-10 flex-col gap-6 text-center"
-        )}
+        className={cn(inter.className, "flex h-screen -mt-10 flex-col gap-6")}
       >
         {children}
         <GitLog />
