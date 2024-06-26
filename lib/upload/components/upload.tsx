@@ -143,15 +143,15 @@ const UploadSingleFile = memo(function UploadSingleFile(
 
       <div className="flex gap-2 items-center">
         <RxProgress value$={client.progress$} />
-        <div className="w-16 flex items-center justify-center">
+        <div className="w-20 flex items-center justify-center">
           <UploaderController
             state$={client.state$}
             onPlay={onPlay}
             onStop={onStop}
             onRestart={onRestart}
           />
+          <TrashIcon className="cursor-pointer ml-2" onClick={onRemove} />
         </div>
-        <TrashIcon className="cursor-pointer" onClick={onRemove} />
       </div>
     </div>
   );
