@@ -49,7 +49,7 @@ export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
         (scrollContainer.lastChild as HTMLDivElement | null)?.scrollIntoView({
           behavior: "smooth",
         });
-      }, 200);
+      }, 500);
     }
   }) satisfies React.ComponentProps<"input">["onChange"]);
 
@@ -83,12 +83,11 @@ const UploadSingleFile = memo(function UploadSingleFile(
   props: IUploaderStateProps
 ) {
   const { file, actions, onRemove } = props;
-  const needCreateRef = useRef(false);
+  const destroyedRef = useRef(false);
 
   const client = useCreation(() => {
-    console.log("new client");
     return new UploadClient(file, actions);
-  }, [file, actions, needCreateRef.current]);
+  }, [file, actions, destroyedRef.current]);
 
   useEffect(() => {
     client.start(AUTO_UPLOAD);
@@ -116,29 +115,27 @@ const UploadSingleFile = memo(function UploadSingleFile(
 
   useEffect(() => {
     return () => {
-      console.log("destroy");
       client.destroy();
-      needCreateRef.current = true;
+      destroyedRef.current = true;
     };
   }, [client]);
 
+  const stateString =
+    state === UploadClient.EState.Error && error
+      ? get(error, "message")
+      : state === UploadClient.EState.Default
+      ? undefined
+      : sentenceCase(UploadClient.EState[state]);
+
   return mp(
     props,
-    <div className="py-2">
-      <div
-        title={file.name}
-        className="flex text-sm mb-2 justify-between gap-4"
-      >
-        <span className="truncate">{file.name}</span>
-        <span className="whitespace-nowrap">
-          {![UploadClient.EState.Default, UploadClient.EState.Error].includes(
-            state
-          ) && sentenceCase(UploadClient.EState[state])}
+    <div className="py-2 flex flex-col gap-2">
+      <div title={file.name} className="truncate">
+        {file.name}
+      </div>
 
-          {state === UploadClient.EState.Error && error ? (
-            <span>{get(error, "message")}</span>
-          ) : undefined}
-        </span>
+      <div title={stateString} className="text-xs truncate text-gray-500">
+        {stateString}
       </div>
 
       <div className="flex gap-2 items-center">
