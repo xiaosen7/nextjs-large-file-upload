@@ -1,3 +1,4 @@
+import { GitLog } from "@/shared/components/git-log";
 import { cn } from "@/shared/utils";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
@@ -17,8 +18,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={cn(inter.className, "flex h-screen -mt-10")}>
+      <body
+        className={cn(
+          inter.className,
+          "flex h-screen -mt-10 flex-col gap-6 text-center"
+        )}
+      >
         {children}
+        <GitLog />
       </body>
     </html>
   );
