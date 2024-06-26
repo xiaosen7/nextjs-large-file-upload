@@ -245,4 +245,25 @@ describe("PromisePool", () => {
       ]);
     });
   });
+
+  test("error$", async () => {
+    const data = [1, 2];
+    const expectedError = new Error();
+    const pool = new PromisePool({
+      concurrency: 1,
+      data,
+      process: async (x) => {
+        if (x === 1) {
+          throw expectedError;
+        }
+        return x;
+      },
+    });
+
+    const onError = vi.fn();
+    pool.error$.subscribe(onError);
+    await pool.start();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError).toHaveBeenCalledWith(expectedError);
+  });
 });

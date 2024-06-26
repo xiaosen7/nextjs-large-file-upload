@@ -1,5 +1,5 @@
 import { once } from "lodash-es";
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, Subject } from "rxjs";
 import { isPositiveInter } from "./type";
 
 enum EPromisePoolState {
@@ -26,6 +26,8 @@ export class PromisePool<TData = any, TValue = any> {
 
   state$ = new BehaviorSubject<EPromisePoolState>(EPromisePoolState.Stopped);
   progress$ = new BehaviorSubject<number>(0);
+  error$ = new Subject();
+
   #results: Array<IPromisePoolResult<TValue>> = [];
 
   #activeDataIndices = new Set<number>();
@@ -103,6 +105,7 @@ export class PromisePool<TData = any, TValue = any> {
           };
         })
         .catch((error) => {
+          this.error$.next(error);
           this.#results[promiseIndex] = {
             value: null,
             error,

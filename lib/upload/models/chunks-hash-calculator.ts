@@ -12,7 +12,10 @@ const readChunk = (file: Blob) => {
         resolve(result);
       }
     };
-    // 这里需要增加容错处理
+
+    reader.onerror = () => {
+      reject(new Error("file read error"));
+    };
   });
 };
 

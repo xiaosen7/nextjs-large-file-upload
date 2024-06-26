@@ -11,12 +11,19 @@ self.onmessage = async (e) => {
     });
   });
 
-  const hash = await calculator.calc();
+  try {
+    const hash = await calculator.calc();
 
-  self.postMessage({
-    percentage: 100,
-    hash,
-  });
-
-  self.close();
+    self.postMessage({
+      percentage: 100,
+      hash,
+    });
+  } catch (error) {
+    console.log("worker", { error });
+    self.postMessage({
+      error,
+    });
+  } finally {
+    self.close();
+  }
 };

@@ -5,16 +5,21 @@ import { Input } from "@/shared/components/ui/input";
 import { Progress } from "@/shared/components/ui/progress";
 import {
   CheckIcon,
+  ExclamationTriangleIcon,
   PauseIcon,
   PlayIcon,
+  ReloadIcon,
   RocketIcon,
 } from "@radix-ui/react-icons";
 import { useCreation, useMemoizedFn } from "ahooks";
 import { sentenceCase } from "change-case";
+import { get } from "lodash-es";
 import { useObservable } from "rcrx";
 import React, { useEffect, useRef, useState } from "react";
 import { Observable, throttleTime } from "rxjs";
 import { IUploadClientActions, UploadClient } from "../models/client";
+
+const AUTO_UPLOAD = true;
 
 export interface IUploaderProps {
   actions: IUploadClientActions;
@@ -69,7 +74,7 @@ function UploadSingleFile(props: IUploaderStateProps) {
   );
 
   useEffect(() => {
-    ui.start(true);
+    ui.start(AUTO_UPLOAD);
   }, [ui]);
 
   const onPlay = useMemoizedFn(() => {
@@ -80,12 +85,17 @@ function UploadSingleFile(props: IUploaderStateProps) {
     ui.stopPool();
   });
 
+  const onRestart = useMemoizedFn(() => {
+    ui.restart(AUTO_UPLOAD);
+  });
+
   const state = useObservable(
     ui.state$.pipe(
       throttleTime(200, undefined, { leading: false, trailing: true })
     ),
     ui.state$.value
   );
+  const error = useObservable(ui.error$, null);
 
   return (
     <div className="py-2">
@@ -95,8 +105,13 @@ function UploadSingleFile(props: IUploaderStateProps) {
       >
         <span className="truncate">{file.name}</span>
         <span className="whitespace-nowrap">
-          {state !== UploadClient.EState.Default &&
-            sentenceCase(UploadClient.EState[state])}
+          {![UploadClient.EState.Default, UploadClient.EState.Error].includes(
+            state
+          ) && sentenceCase(UploadClient.EState[state])}
+
+          {state === UploadClient.EState.Error && error ? (
+            <span>{get(error, "message")}</span>
+          ) : undefined}
         </span>
       </div>
       <div className="flex gap-2 items-center">
@@ -106,6 +121,7 @@ function UploadSingleFile(props: IUploaderStateProps) {
             state$={ui.state$}
             onPlay={onPlay}
             onStop={onStop}
+            onRestart={onRestart}
           />
         </div>
       </div>
@@ -116,11 +132,13 @@ function UploadSingleFile(props: IUploaderStateProps) {
 interface IUploaderControllerProps {
   onPlay?: () => void;
   onStop?: () => void;
+  onRestart?: () => void;
   state$: UploadClient["state$"];
 }
 const UploaderController: React.FC<IUploaderControllerProps> = ({
   onPlay,
   onStop,
+  onRestart,
   state$,
 }) => {
   const state = useObservable(
@@ -145,10 +163,23 @@ const UploaderController: React.FC<IUploaderControllerProps> = ({
       return <PauseIcon onClick={onStop} className="cursor-pointer" />;
 
     case UploadClient.EState.UploadSuccessfully:
-      return <CheckIcon />;
+      return (
+        <div className="flex gap-2">
+          <CheckIcon />
+          <ReloadIcon onClick={onRestart} className="cursor-pointer" />
+        </div>
+      );
 
     case UploadClient.EState.FastUploaded:
       return <RocketIcon />;
+
+    case UploadClient.EState.Error:
+      return (
+        <div className="flex gap-2">
+          <ExclamationTriangleIcon color="red" />{" "}
+          <ReloadIcon onClick={onRestart} className="cursor-pointer" />
+        </div>
+      );
 
     default:
       return <Loading />;

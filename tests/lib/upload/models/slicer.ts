@@ -25,7 +25,7 @@ describe("UploadSlicer", () => {
   });
 
   test("exists", async () => {
-    expect(await slicer.exists()).toBeFalsy();
+    expect(await slicer.fileExists()).toBeFalsy();
   });
 
   test("chunkExists", async () => {
@@ -47,11 +47,11 @@ describe("UploadSlicer", () => {
       )
     );
 
-    expect(await slicer.exists()).toBeFalsy();
+    expect(await slicer.fileExists()).toBeFalsy();
 
     await slicer.merge();
 
-    expect(await slicer.exists()).toBeTruthy();
+    expect(await slicer.fileExists()).toBeTruthy();
     expect(await storage.exists(slicer.getFilePath())).toBeTruthy();
   });
 });

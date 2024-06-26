@@ -19,7 +19,7 @@ export class UploadSlicer {
     return this.storage.joinPaths(this.#rootDir, COMBINED_FILE_NAME);
   }
 
-  async exists() {
+  async fileExists() {
     return this.storage.exists(this.getFilePath());
   }
 
@@ -35,11 +35,30 @@ export class UploadSlicer {
   }
 
   async merge() {
-    const sourcePaths = (await this.storage.readdir(this.#chunksDir))
-      .sort((a, b) => Number(a) - Number(b))
-      .map((basename) => this.storage.joinPaths(this.#chunksDir, basename));
+    const chunkIndices = (await this.storage.readdir(this.#chunksDir))
+      .map((x) => Number(x))
+      .sort((a, b) => a - b);
 
-    console.log({ sourcePaths });
+    const totalChunks = chunkIndices.length;
+    if (totalChunks < 1) {
+      throw new Error("no chunks found");
+    }
+
+    if (chunkIndices[0] !== 0) {
+      throw new Error("chunk sequence is not correct");
+    }
+
+    // check the sequence is correct
+    for (let i = 0; i < totalChunks - 1; i++) {
+      if (chunkIndices[i] + 1 !== chunkIndices[i + 1]) {
+        throw new Error("chunk sequence is not correct");
+      }
+    }
+
+    const sourcePaths = chunkIndices.map((basename) =>
+      this.storage.joinPaths(this.#chunksDir, String(basename))
+    );
+
     const dest = this.getFilePath();
     return this.storage.merge(sourcePaths, dest);
   }

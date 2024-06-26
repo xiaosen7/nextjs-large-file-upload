@@ -22,6 +22,7 @@ describe("UploadClient", () => {
     autoUpload,
     expectedStateSequence,
     onStuck,
+    expectedError,
   }: {
     partialActions: Partial<IUploadClientActions>;
     autoUpload: boolean;
@@ -30,6 +31,7 @@ describe("UploadClient", () => {
       client: UploadClient,
       expectStateSequence: (expectedStateSequence: EUploadClientState[]) => void
     ) => Promise<void>;
+    expectedError?: unknown;
   }) => {
     const file = new File(["hello world"], "test.name");
     const actions: IUploadClientActions = {
@@ -39,7 +41,7 @@ describe("UploadClient", () => {
       async uploadChunk(formData) {
         return;
       },
-      async exists() {
+      async fileExists() {
         return false;
       },
       async merge(hash) {
@@ -48,17 +50,24 @@ describe("UploadClient", () => {
       ...partialActions,
     };
     const client = new UploadClient(file, actions);
-    const stateObserver = vi.fn((state) => {});
+
+    const stateObserver = vi.fn((state): void => {
+      console.log(EUploadClientState[state]);
+    });
 
     client.state$.subscribe(stateObserver);
 
-    const progressObserver = vi.fn(() => {});
+    const progressObserver = vi.fn();
     client.progress$.subscribe(progressObserver);
+
+    const errorObserver = vi.fn();
+    client.error$.subscribe(errorObserver);
+
     await new Promise((resolve) => {
       if (autoUpload) {
-        client.start(autoUpload).then(resolve);
+        client.start(true).then(resolve);
       } else {
-        client.start(autoUpload);
+        client.start(false);
         client.state$
           .pipe(filter((state) => state === UploadClient.EState.WaitForUpload))
           .subscribe(resolve);
@@ -79,13 +88,17 @@ describe("UploadClient", () => {
       expect(stateObserver).toHaveBeenNthCalledWith(index + 1, state);
     });
 
-    expect(progressObserver).toHaveBeenLastCalledWith(100);
+    if (expectedError) {
+      expect(errorObserver).toHaveBeenCalledWith(expectedError);
+    } else {
+      expect(progressObserver).toHaveBeenLastCalledWith(100);
+    }
 
     return client;
   };
   test("upload normally", async () => {
     await doTest({
-      partialActions: { exists: async () => false },
+      partialActions: { fileExists: async () => false },
       autoUpload: true,
       expectedStateSequence: [
         UploadClient.EState.Default,
@@ -100,7 +113,7 @@ describe("UploadClient", () => {
 
   test("fast upload", async () => {
     const client = await doTest({
-      partialActions: { exists: async () => true },
+      partialActions: { fileExists: async () => true },
       autoUpload: true,
       expectedStateSequence: [
         UploadClient.EState.Default,
@@ -115,7 +128,7 @@ describe("UploadClient", () => {
 
   test("upload manually", async () => {
     await doTest({
-      partialActions: { exists: async () => false },
+      partialActions: { fileExists: async () => false },
       autoUpload: false,
       expectedStateSequence: [
         UploadClient.EState.Default,
@@ -136,6 +149,25 @@ describe("UploadClient", () => {
         ]);
         await client.start();
       },
+    });
+  });
+
+  test("error", async () => {
+    const error = new Error("error");
+    await doTest({
+      partialActions: {
+        fileExists: async () => {
+          throw error;
+        },
+      },
+      autoUpload: true,
+      expectedStateSequence: [
+        UploadClient.EState.Default,
+        UploadClient.EState.CalculatingHash,
+        UploadClient.EState.CheckingFileExists,
+        UploadClient.EState.Error,
+      ],
+      expectedError: error,
     });
   });
 });

@@ -15,10 +15,10 @@ export const uploadActions: IUploadClientActions = {
     const stream = (chunk as File).stream() as any;
     await slicer.writeChunk(index, stream);
   },
-  exists: async (hash: string) => {
+  fileExists: async (hash: string) => {
     "use server";
     const slicer = new UploadSlicer(hash, globalThis.storage);
-    return await slicer.exists();
+    return await slicer.fileExists();
   },
   chunkExists: async (hash: string, index: number) => {
     "use server";
