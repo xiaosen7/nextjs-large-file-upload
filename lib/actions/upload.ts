@@ -1,43 +1,33 @@
-import { IUploaderProps } from "@/upload/components/upload";
-import { IUploadChunkData } from "@/upload/models/client";
-import { FileSlicer } from "@/upload/models/slicer";
-import { FilesystemStorage } from "@/upload/models/storage";
-import { deconstructFormData } from "@/upload/utils/base";
-import * as fs from "fs/promises";
-import path from "path";
+import { IUploadChunkData, IUploadClientActions } from "@/upload/models/client";
+import { UploadSlicer } from "@/upload/models/slicer";
+import { UploadStorage } from "@/upload/models/storage";
+import { deconstructFormData } from "@/upload/utils/type";
 
-function createFileSlicer(hash: string) {
-  return new FileSlicer({
-    hash,
-    storage: new FilesystemStorage(fs, path),
-    storageRoot: path.resolve("node_modules", ".cache"),
-  });
-}
+const globalThis = global as unknown as { storage: UploadStorage };
 
-export const uploadActions: IUploaderProps["actions"] = {
+export const uploadActions: IUploadClientActions = {
   uploadChunk: async (formData: FormData) => {
     "use server";
     const { hash, chunk, index } =
       deconstructFormData<IUploadChunkData>(formData);
-    const slicer = createFileSlicer(hash);
-    await slicer.writePiece(
-      Buffer.from(await (chunk as File).arrayBuffer()),
-      index
-    );
+    const slicer = new UploadSlicer(hash, globalThis.storage);
+
+    const stream = (chunk as File).stream() as any;
+    await slicer.writeChunk(index, stream);
   },
   exists: async (hash: string) => {
     "use server";
-    const slicer = createFileSlicer(hash);
+    const slicer = new UploadSlicer(hash, globalThis.storage);
     return await slicer.exists();
   },
   chunkExists: async (hash: string, index: number) => {
     "use server";
-    const slicer = createFileSlicer(hash);
+    const slicer = new UploadSlicer(hash, globalThis.storage);
     return await slicer.chunkExists(index);
   },
-  mergeFile: async (hash: string) => {
+  merge: async (hash: string) => {
     "use server";
-    const slicer = createFileSlicer(hash);
+    const slicer = new UploadSlicer(hash, globalThis.storage);
     await slicer.merge();
   },
 };

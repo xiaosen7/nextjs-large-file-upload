@@ -11,14 +11,13 @@ import {
 } from "@radix-ui/react-icons";
 import { useCreation, useMemoizedFn } from "ahooks";
 import { sentenceCase } from "change-case";
-import { useObservable, useSubscribe } from "rcrx";
+import { useObservable } from "rcrx";
 import React, { useEffect, useRef, useState } from "react";
-import { Observable } from "rxjs";
-import { IUploadClientApi } from "../models/client";
-import { UploadUI } from "../models/ui";
+import { Observable, throttleTime } from "rxjs";
+import { IUploadClientActions, UploadClient } from "../models/client";
 
 export interface IUploaderProps {
-  actions: IUploadClientApi;
+  actions: IUploadClientActions;
 }
 
 export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
@@ -46,7 +45,11 @@ export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
 
       <div ref={scrollContainerRef} className="h-64 overflow-auto">
         {files.map((file, index) => (
-          <UploadSingleFile key={file.name + index} api={actions} file={file} />
+          <UploadSingleFile
+            key={file.name + index}
+            actions={actions}
+            file={file}
+          />
         ))}
       </div>
     </div>
@@ -55,15 +58,18 @@ export const Uploader: React.FC<IUploaderProps> = ({ actions }) => {
 
 interface IUploaderStateProps {
   file: File;
-  api: IUploadClientApi;
+  actions: IUploadClientActions;
 }
 function UploadSingleFile(props: IUploaderStateProps) {
-  const { file, api } = props;
+  const { file, actions } = props;
 
-  const ui = useCreation(() => new UploadUI(file, api), [file, api]);
+  const ui = useCreation(
+    () => new UploadClient(file, actions),
+    [file, actions]
+  );
 
   useEffect(() => {
-    ui.start();
+    ui.start(true);
   }, [ui]);
 
   const onPlay = useMemoizedFn(() => {
@@ -74,12 +80,12 @@ function UploadSingleFile(props: IUploaderStateProps) {
     ui.stopPool();
   });
 
-  const state = useObservable(ui.state$, ui.state$.value);
-  useSubscribe(ui.state$, (state) => {
-    if (state === UploadUI.EState.WaitForUpload) {
-      ui.startPool();
-    }
-  });
+  const state = useObservable(
+    ui.state$.pipe(
+      throttleTime(200, undefined, { leading: false, trailing: true })
+    ),
+    ui.state$.value
+  );
 
   return (
     <div className="py-2">
@@ -89,7 +95,8 @@ function UploadSingleFile(props: IUploaderStateProps) {
       >
         <span className="truncate">{file.name}</span>
         <span className="whitespace-nowrap">
-          {sentenceCase(UploadUI.EState[state])}
+          {state !== UploadClient.EState.Default &&
+            sentenceCase(UploadClient.EState[state])}
         </span>
       </div>
       <div className="flex gap-2 items-center">
@@ -109,34 +116,38 @@ function UploadSingleFile(props: IUploaderStateProps) {
 interface IUploaderControllerProps {
   onPlay?: () => void;
   onStop?: () => void;
-  state$: UploadUI["state$"];
+  state$: UploadClient["state$"];
 }
 const UploaderController: React.FC<IUploaderControllerProps> = ({
   onPlay,
   onStop,
   state$,
 }) => {
-  const state = useObservable(state$, state$.value);
-  // console.log(UploadUI.EState[state]);
+  const state = useObservable(
+    state$.pipe(
+      throttleTime(200, undefined, { leading: false, trailing: true })
+    ),
+    state$.value
+  );
 
   switch (state) {
-    case UploadUI.EState.Default:
+    case UploadClient.EState.Default:
       return null;
 
-    case UploadUI.EState.CalculatingHash:
+    case UploadClient.EState.CalculatingHash:
       return <span className="text-xs">Analysis...</span>;
 
-    case UploadUI.EState.WaitForUpload:
-    case UploadUI.EState.UploadStopped:
+    case UploadClient.EState.WaitForUpload:
+    case UploadClient.EState.UploadStopped:
       return <PlayIcon onClick={onPlay} className="cursor-pointer" />;
 
-    case UploadUI.EState.Uploading:
+    case UploadClient.EState.Uploading:
       return <PauseIcon onClick={onStop} className="cursor-pointer" />;
 
-    case UploadUI.EState.UploadSuccessfully:
+    case UploadClient.EState.UploadSuccessfully:
       return <CheckIcon />;
 
-    case UploadUI.EState.FastUploaded:
+    case UploadClient.EState.FastUploaded:
       return <RocketIcon />;
 
     default:
@@ -150,5 +161,5 @@ interface IUploaderInfoProps {
 const RxProgress: React.FC<IUploaderInfoProps> = ({ value$ }) => {
   const value = useObservable(value$, 0);
 
-  return <Progress className="h-1" value={value} />;
+  return <Progress className="h-1 my-2" value={value} />;
 };

@@ -1,13 +1,20 @@
-import { CHUNK_SIZE } from "../constants";
-import { IFilePiece } from "../types";
-import { createFormData } from "../utils/base";
+import { once } from "lodash-es";
+import { BehaviorSubject, filter } from "rxjs";
+import { CHUNK_SIZE, CONCURRENCY } from "../constants";
 import { PromisePool } from "../utils/promise-pool";
+import { createFormData } from "../utils/type";
+import { calculateChunksHashByWorker } from "../utils/workers";
 
-export interface IUploadClientApi {
-  exists: (hash: string) => Promise<boolean>;
-  chunkExists: (hash: string, index: number) => Promise<boolean>;
-  mergeFile: (hash: string) => Promise<void>;
-  uploadChunk: (formData: FormData) => Promise<void>;
+export enum EUploadClientState {
+  Default,
+  CalculatingHash,
+  CheckingFileExists,
+  FastUploaded,
+  WaitForUpload,
+  Uploading,
+  UploadStopped,
+  Merging,
+  UploadSuccessfully,
 }
 
 export interface IUploadChunkData {
@@ -16,72 +23,111 @@ export interface IUploadChunkData {
   index: number;
 }
 
-interface IUploadChunksOptions {
-  pieces: IFilePiece[];
-  hash: string;
-  parallelSize?: number;
+export interface IUploadClientActions {
+  exists: (hash: string) => Promise<boolean>;
+  chunkExists: (hash: string, index: number) => Promise<boolean>;
+  merge: (hash: string) => Promise<void>;
+  uploadChunk: (formData: FormData) => Promise<void>;
 }
 
 export class UploadClient {
-  constructor(private file: File, private api: IUploadClientApi) {}
+  static EState = EUploadClientState;
 
-  split(chunkSize = CHUNK_SIZE) {
-    const fileChunkList: IFilePiece[] = [];
-    let cur = 0;
-    while (cur < this.file.size) {
-      const piece = this.file.slice(cur, cur + chunkSize);
-      fileChunkList.push({
-        chunk: piece,
-        size: piece.size,
-      });
-      cur += chunkSize;
-    }
-    return fileChunkList;
+  state$ = new BehaviorSubject<EUploadClientState>(EUploadClientState.Default);
+  progress$ = new BehaviorSubject<number>(0);
+  #pool?: PromisePool<Blob, void>;
+
+  constructor(private file: File, private actions: IUploadClientActions) {}
+
+  async #checkExists() {
+    const chunks = this.#split();
+    this.state$.next(EUploadClientState.CalculatingHash);
+    const hash = await calculateChunksHashByWorker(chunks, (progress) => {
+      this.progress$.next(progress);
+    });
+
+    this.state$.next(EUploadClientState.CheckingFileExists);
+    const exists = await this.actions.exists(hash);
+
+    return {
+      exists,
+      hash,
+      chunks,
+    };
   }
 
-  calHash = ({
-    chunks,
-    onTick,
-  }: {
-    chunks: IFilePiece[];
-    onTick?: (percentage: number) => void;
-  }): Promise<string> => {
-    return new Promise((resolve) => {
-      // 添加 worker 属性，webworker
-      const worker = new Worker(
-        new URL("../utils/hash-worker.ts", import.meta.url)
-      );
-      worker.postMessage({ fileChunkList: chunks });
-      worker.onmessage = (e) => {
-        const { hash, percentage } = e.data;
-        const hashPercentage = parseInt(percentage.toFixed(2));
-        onTick?.(hashPercentage);
-        if (hash) {
-          resolve(hash);
-        }
-      };
-    });
-  };
-
-  uploadChunks(options: IUploadChunksOptions) {
-    const { pieces: originChunks, hash, parallelSize = 3 } = options;
-    const uploadChunksPool = new PromisePool({
-      data: originChunks,
-      concurrency: parallelSize,
-      process: async ({ chunk }, index) => {
-        const exists = await this.api.chunkExists(hash, index);
+  #createUploadChunksPool(hash: string, chunks: Blob[]) {
+    this.#pool = new PromisePool({
+      data: chunks,
+      concurrency: CONCURRENCY,
+      process: async (chunk, index) => {
+        const exists = await this.actions.chunkExists(hash, index);
         if (!exists) {
-          await this.api.uploadChunk(
-            createFormData({ hash, chunk: chunk, index })
+          await this.actions.uploadChunk(
+            createFormData({ hash, chunk, index })
           );
         }
       },
     });
-
-    return uploadChunksPool;
   }
 
-  merge(hash: string) {
-    return this.api.mergeFile(hash);
+  #merge(hash: string) {
+    return this.actions.merge(hash);
+  }
+
+  start = once(async (autoUpload = false) => {
+    const { chunks, hash, exists } = await this.#checkExists();
+    if (exists) {
+      this.state$.next(EUploadClientState.FastUploaded);
+      this.progress$.next(100);
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      this.#createUploadChunksPool(hash, chunks);
+      this.#pool!.state$.pipe(
+        filter((state) => state === PromisePool.EState.Complete)
+      ).subscribe(() => {
+        this.state$.next(EUploadClientState.Merging);
+        resolve(
+          this.#merge(hash).then(() => {
+            this.state$.next(EUploadClientState.UploadSuccessfully);
+          })
+        );
+      });
+
+      this.#pool!.progress$.subscribe(this.progress$);
+
+      if (autoUpload) {
+        this.startPool();
+      } else {
+        this.state$.next(EUploadClientState.WaitForUpload);
+      }
+    });
+  });
+
+  #split(chunkSize = CHUNK_SIZE) {
+    const chunks: Blob[] = [];
+    let cur = 0;
+    while (cur < this.file.size) {
+      const piece = this.file.slice(cur, cur + chunkSize);
+      chunks.push(piece);
+      cur += chunkSize;
+    }
+    return chunks;
+  }
+
+  startPool() {
+    if (this.#pool) {
+      this.#pool.start();
+      this.state$.next(EUploadClientState.Uploading);
+    }
+  }
+
+  stopPool() {
+    if (this.#pool) {
+      this.#pool.stop();
+      this.state$.next(EUploadClientState.UploadStopped);
+    }
   }
 }

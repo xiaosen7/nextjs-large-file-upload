@@ -1,6 +1,6 @@
 import { once } from "lodash-es";
 import { BehaviorSubject } from "rxjs";
-import { isPositiveInter } from "./base";
+import { isPositiveInter } from "./type";
 
 enum EPromisePoolState {
   Stopped = "Stopped",
@@ -73,7 +73,6 @@ export class PromisePool<TData = any, TValue = any> {
   #loop = once(async () => {
     const { process } = this.options;
 
-    let index = 0;
     const { concurrency, data } = this.options;
     const promises = data.map((data, index) => () => process(data, index));
 
@@ -84,7 +83,10 @@ export class PromisePool<TData = any, TValue = any> {
       }>
     > = new Set();
 
-    while (index < promises.length) {
+    let index = 0;
+    let finished = 0;
+    const total = promises.length;
+    while (index < total) {
       if (this.#stopPromise) {
         await this.#stopPromise;
       }
@@ -107,9 +109,9 @@ export class PromisePool<TData = any, TValue = any> {
           };
         })
         .then(() => {
-          const progress = ((promiseIndex + 1) / promises.length) * 100;
-          this.progress$.next(progress);
-          if (progress === 100) {
+          finished++;
+
+          if (finished === total) {
             this.progress$.complete();
             this.state$.next(EPromisePoolState.Complete);
           }
@@ -120,6 +122,9 @@ export class PromisePool<TData = any, TValue = any> {
           };
         });
       pool.add(poolItem);
+
+      const progress = ((promiseIndex + 1) / promises.length) * 100;
+      this.progress$.next(progress);
 
       if (this.#activeDataIndices.size === concurrency) {
         this.#isPoolFull = true;
@@ -133,8 +138,7 @@ export class PromisePool<TData = any, TValue = any> {
       index++;
     }
 
-    // rest promises
-    await Promise.all(pool);
+    await Promise.all(pool); // wait rest promises
     return this.#results;
   });
 
