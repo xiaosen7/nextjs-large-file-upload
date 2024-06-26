@@ -151,12 +151,14 @@ const UploadSingleFile = memo(function UploadSingleFile(
   return mp(
     props,
     <div className="py-2 flex flex-col gap-2">
-      <div title={file.name} className="truncate">
-        {file.name}
-      </div>
+      <div className="flex max-lg:flex-col gap-2 justify-between lg:items-center">
+        <div title={file.name} className="truncate">
+          {file.name}
+        </div>
 
-      <div title={stateString} className="text-xs truncate text-gray-500">
-        {stateString}
+        <div title={stateString} className="text-xs truncate text-gray-500">
+          {stateString}
+        </div>
       </div>
 
       <div className="flex gap-2 items-center">
