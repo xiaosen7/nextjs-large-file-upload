@@ -10,6 +10,7 @@ export function createSlicer() {
     hash,
     storage,
     slicer,
+    clear: () => MemoryStorage.clear(),
   };
 }
 

@@ -17,6 +17,29 @@ vi.mock("@/upload/utils/workers", () => {
 });
 
 describe("UploadClient", () => {
+  const createClient = (partialActions: Partial<IUploadClientActions>) => {
+    const file = new File(["hello world"], "test.name");
+    const actions: IUploadClientActions = {
+      async chunkExists(hash, index) {
+        return false;
+      },
+      async uploadChunk(formData) {
+        return;
+      },
+      async fileExists() {
+        return false;
+      },
+      async merge(hash) {
+        return;
+      },
+      async getLastExistedChunkIndex() {
+        return -1;
+      },
+      ...partialActions,
+    };
+    return new UploadClient(file, actions);
+  };
+
   const doTest = async ({
     partialActions,
     autoUpload,
@@ -33,23 +56,7 @@ describe("UploadClient", () => {
     ) => Promise<void>;
     expectedError?: unknown;
   }) => {
-    const file = new File(["hello world"], "test.name");
-    const actions: IUploadClientActions = {
-      async chunkExists(hash, index) {
-        return false;
-      },
-      async uploadChunk(formData) {
-        return;
-      },
-      async fileExists() {
-        return false;
-      },
-      async merge(hash) {
-        return;
-      },
-      ...partialActions,
-    };
-    const client = new UploadClient(file, actions);
+    const client = createClient(partialActions);
 
     const stateObserver = vi.fn((state): void => {
       console.log(EUploadClientState[state]);
@@ -65,7 +72,7 @@ describe("UploadClient", () => {
 
     await new Promise((resolve) => {
       if (autoUpload) {
-        client.start(true).then(resolve);
+        client.start(true);
       } else {
         client.start(false);
         client.state$
@@ -170,4 +177,10 @@ describe("UploadClient", () => {
       expectedError: error,
     });
   });
+
+  // test("destroy", async () => {
+  //   const client = createClient({});
+  //   client.destroy();
+  //   expect(vi.fn(() => client.start())).rejects.toBeInstanceOf(Error);
+  // });
 });

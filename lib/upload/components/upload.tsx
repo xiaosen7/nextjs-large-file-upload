@@ -12,11 +12,11 @@ import {
   ReloadIcon,
   TrashIcon,
 } from "@radix-ui/react-icons";
-import { useCreation, useLocalStorageState, useMemoizedFn } from "ahooks";
+import { useLocalStorageState, useMap, useMemoizedFn } from "ahooks";
 import { sentenceCase } from "change-case";
-import { get, set, uniqueId } from "lodash-es";
+import { get, uniqueId } from "lodash-es";
 import { useObservable } from "rcrx";
-import React, { memo, useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useRef } from "react";
 import { Observable } from "rxjs";
 import { CHUNK_SIZE, CONCURRENCY } from "../constants";
 import { IUploadClientActions, UploadClient } from "../models/client";
@@ -33,7 +33,6 @@ export interface IUploadProps {
 }
 
 export const Upload: React.FC<IUploadProps> = ({ actions }) => {
-  const [files, setFiles] = useState<IFile[]>([]);
   const [setting, setSetting] = useLocalStorageState<IUploadSetting>(
     "uploadSetting",
     {
@@ -44,15 +43,24 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
     }
   );
 
+  const [clientMap, clientMapActions] = useMap<string, UploadClient>();
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainer = scrollContainerRef.current;
 
   const onChange = useMemoizedFn((async (e) => {
-    const files = Array.from(e.target.files ?? []).map(
-      (file) => set(file, "id", uniqueId()) as IFile
-    );
+    Array.from(e.target.files ?? []).forEach((file) => {
+      const id = uniqueId();
+      const client = new UploadClient(
+        file,
+        actions,
+        setting?.concurrency,
+        setting?.chunkSize
+      );
+      clientMap.set(id, client);
+    });
 
-    setFiles((pre) => [...pre, ...files]);
+    clientMapActions.setAll(clientMap);
 
     if (scrollContainer) {
       setTimeout(() => {
@@ -62,6 +70,11 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
       }, 500);
     }
   }) satisfies React.ComponentProps<"input">["onChange"]);
+
+  const onRemove = useMemoizedFn((id: string) => {
+    clientMap.get(id)?.destroy();
+    clientMapActions.remove(id);
+  });
 
   return (
     <div className="flex flex-col gap-4 border border-solid py-4">
@@ -76,19 +89,16 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
         <UploadSetting
           value={setting}
           onChange={setSetting}
-          disabled={files.length > 0}
+          disabled={clientMap.size > 0}
         />
       </div>
 
       <div ref={scrollContainerRef} className="h-64 overflow-auto px-4">
-        {files.map((file) => (
+        {Array.from(clientMap.keys()).map((id) => (
           <UploadSingleFile
-            key={file.id}
-            actions={actions}
-            file={file}
-            onRemove={() =>
-              setFiles((pre) => pre.filter((x) => x.id !== file.id))
-            }
+            key={id}
+            client={clientMap.get(id)!}
+            onRemove={() => onRemove(id)}
             {...setting}
           />
         ))}
@@ -98,22 +108,17 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
 };
 
 interface IUploadSingleFileProps {
-  file: IFile;
-  actions: IUploadClientActions;
   className?: string;
   onRemove?: () => void;
   concurrency?: number;
+  client: UploadClient;
   chunkSize?: number;
 }
 const UploadSingleFile = memo(function UploadSingleFile(
   props: IUploadSingleFileProps
 ) {
-  const { file, actions, onRemove, concurrency, chunkSize } = props;
-  const destroyedRef = useRef(false);
-
-  const client = useCreation(() => {
-    return new UploadClient(file, actions, concurrency, chunkSize);
-  }, [file, actions, destroyedRef.current, concurrency, chunkSize]);
+  const { client, onRemove } = props;
+  const file = client.file;
 
   useEffect(() => {
     client.start(AUTO_UPLOAD);
@@ -134,13 +139,6 @@ const UploadSingleFile = memo(function UploadSingleFile(
   const state = useObservable(client.state$, UploadClient.EState.Default);
   const error = useObservable(client.error$, null);
 
-  useEffect(() => {
-    return () => {
-      client.destroy();
-      destroyedRef.current = true;
-    };
-  }, [client]);
-
   const stateString =
     state === UploadClient.EState.Error && error
       ? get(error, "message")
@@ -151,24 +149,23 @@ const UploadSingleFile = memo(function UploadSingleFile(
   return mp(
     props,
     <div className="py-2 flex flex-col gap-2">
-      <div className="flex max-lg:flex-col gap-2 justify-between lg:items-center">
+      <div className="flex flex-col gap-2 justify-between">
         <div title={file.name} className="truncate">
           {file.name}
         </div>
 
         <div
           title={stateString}
-          className="text-gray-500 text-xs truncate flex gap-2"
+          className="text-gray-500 text-xs flex gap-2 overflow-hidden"
         >
-          {stateString}
-
           <UploadStateIcon state$={client.state$} />
+          <div className="truncate flex-1">{stateString}</div>
         </div>
       </div>
 
       <div className="flex gap-2 items-center">
         <RxProgress value$={client.progress$} />
-        <div className="w-20 flex items-center justify-center">
+        <div className="w-12 flex items-center justify-end">
           <UploadControl
             state$={client.state$}
             onPlay={onPlay}

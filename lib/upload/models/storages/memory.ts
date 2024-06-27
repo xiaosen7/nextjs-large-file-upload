@@ -3,7 +3,7 @@ import { get, set } from "lodash-es";
 import path, { isAbsolute } from "path";
 import { Readable, Writable } from "stream";
 
-const data = {};
+let data = {};
 
 const splitPath = (path: string) => {
   return path.split("/").filter(Boolean);
@@ -43,6 +43,10 @@ export class MemoryReadableStream extends Readable {
  * Memory storage for testing or Vercel deployment
  */
 export class MemoryStorage extends UploadStorage {
+  static clear() {
+    data = {};
+  }
+
   private root: string;
 
   constructor() {

@@ -3,13 +3,14 @@ import { range } from "lodash-es";
 import { CustomReadableStream, createSlicer } from "./test-utils";
 
 describe("UploadSlicer", () => {
-  let { slicer, hash, storage } = createSlicer();
+  let { slicer, hash, storage, clear } = createSlicer();
 
   beforeEach(() => {
     const helpers = createSlicer();
     slicer = helpers.slicer;
     hash = helpers.hash;
     storage = helpers.storage;
+    clear();
   });
 
   test("getChunkPath", () => {
@@ -37,6 +38,19 @@ describe("UploadSlicer", () => {
     await slicer.writeChunk(0, stream);
 
     expect(await slicer.chunkExists(0)).toBeTruthy();
+  });
+
+  test("getLastExistedChunkIndex", async () => {
+    expect(await slicer.getLastExistedChunkIndex()).toBe(-1);
+
+    const chunkCount = 3;
+    await Promise.all(
+      range(chunkCount).map((index) =>
+        slicer.writeChunk(index, new CustomReadableStream(`${index}`))
+      )
+    );
+
+    expect(await slicer.getLastExistedChunkIndex()).toBe(chunkCount - 1);
   });
 
   test("merge", async () => {

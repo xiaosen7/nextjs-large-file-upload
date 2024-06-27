@@ -40,7 +40,10 @@ export class FileSystemStorage extends UploadStorage {
     return createReadStream(this.joinPaths(path));
   }
 
-  readdir(path: string): Promise<string[]> {
+  async readdir(path: string): Promise<string[]> {
+    if (!(await this.exists(path))) {
+      return [];
+    }
     return readdir(path);
   }
 

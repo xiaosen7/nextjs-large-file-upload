@@ -11,12 +11,22 @@ export class UploadSlicer {
     this.#chunksDir = this.storage.joinPaths(this.#rootDir, CHUNKS_DIR);
   }
 
+  async #getSortedExistedChunkIndices() {
+    return (await this.storage.readdir(this.#chunksDir))
+      .map((x) => Number(x))
+      .sort((a, b) => a - b);
+  }
+
   getChunkPath(index: number) {
     return this.storage.joinPaths(this.#chunksDir, `${index}`);
   }
 
   getFilePath() {
     return this.storage.joinPaths(this.#rootDir, COMBINED_FILE_NAME);
+  }
+
+  async getLastExistedChunkIndex() {
+    return (await this.#getSortedExistedChunkIndices()).pop() ?? -1;
   }
 
   async fileExists() {
@@ -35,9 +45,7 @@ export class UploadSlicer {
   }
 
   async merge() {
-    const chunkIndices = (await this.storage.readdir(this.#chunksDir))
-      .map((x) => Number(x))
-      .sort((a, b) => a - b);
+    const chunkIndices = await this.#getSortedExistedChunkIndices();
 
     const totalChunks = chunkIndices.length;
     if (totalChunks < 1) {

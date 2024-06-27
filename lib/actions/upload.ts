@@ -35,4 +35,9 @@ export const uploadActions: IUploadClientActions = {
     const slicer = new UploadSlicer(hash, globalThis.storage);
     await slicer.merge();
   },
+  getLastExistedChunkIndex: async (hash) => {
+    "use server";
+    const slicer = new UploadSlicer(hash, globalThis.storage);
+    return slicer.getLastExistedChunkIndex();
+  },
 };

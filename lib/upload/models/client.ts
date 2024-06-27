@@ -3,8 +3,14 @@ import {
   BehaviorSubject,
   Subject,
   Subscription,
+  concatMap,
   filter,
-  firstValueFrom,
+  from,
+  map,
+  of,
+  switchMap,
+  take,
+  tap,
 } from "rxjs";
 import { CHUNK_SIZE, CONCURRENCY } from "../constants";
 import { PromisePool } from "../utils/promise-pool";
@@ -35,6 +41,7 @@ export interface IUploadClientActions {
   chunkExists: (hash: string, index: number) => Promise<boolean>;
   merge: (hash: string) => Promise<void>;
   uploadChunk: (formData: FormData) => Promise<void>;
+  getLastExistedChunkIndex: (hash: string) => Promise<number>;
 }
 
 export class UploadClient {
@@ -46,13 +53,25 @@ export class UploadClient {
 
   #pool: PromisePool<Blob, void> | null = null;
   #subscription = new Subscription();
+  #destroyed = false;
 
   constructor(
-    private file: File,
+    public readonly file: File,
     private actions: IUploadClientActions,
     private concurrency = CONCURRENCY,
     private chunkSize = CHUNK_SIZE
   ) {}
+
+  #split() {
+    const chunks: Blob[] = [];
+    let cur = 0;
+    while (cur < this.file.size) {
+      const piece = this.file.slice(cur, cur + this.chunkSize);
+      chunks.push(piece);
+      cur += this.chunkSize;
+    }
+    return chunks;
+  }
 
   #calcHash = async () => {
     const chunks = this.#split();
@@ -80,11 +99,20 @@ export class UploadClient {
     };
   }
 
-  #createPool(hash: string, chunks: Blob[]) {
+  async #createPool(hash: string, chunks: Blob[]) {
+    this.#pool?.destroy();
+    const lastExistedChunkIndex = await this.actions.getLastExistedChunkIndex(
+      hash
+    );
+
     this.#pool = new PromisePool({
       data: chunks,
       concurrency: this.concurrency,
       process: async (chunk, index) => {
+        if (lastExistedChunkIndex >= index) {
+          return;
+        }
+
         const exists = await this.actions.chunkExists(hash, index);
         if (!exists) {
           await this.actions.uploadChunk(
@@ -93,53 +121,9 @@ export class UploadClient {
         }
       },
     });
-  }
 
-  #merge(hash: string) {
-    return this.actions.merge(hash);
-  }
-
-  async #run(autoUpload = false) {
-    this.#pool?.destroy();
-    this.#pool = null;
-    this.#subscription.unsubscribe();
-    this.#subscription = new Subscription();
-
-    try {
-      const { chunks, hash, exists } = await this.#checkExists();
-      if (exists) {
-        this.state$.next(EUploadClientState.FastUploaded);
-        this.progress$.next(100);
-        return;
-      }
-
-      this.#createPool(hash, chunks);
-
-      this.#subscription.add(this.#pool!.error$.subscribe(this.#handleError));
-      this.#subscription.add(this.#pool!.progress$.subscribe(this.progress$));
-
-      if (autoUpload) {
-        this.startPool();
-      } else {
-        this.state$.next(EUploadClientState.WaitForUpload);
-      }
-
-      await firstValueFrom(
-        this.#pool!.state$.pipe(
-          filter((state) => state === PromisePool.EState.Complete)
-        )
-      );
-
-      this.state$.next(EUploadClientState.Merging);
-
-      await this.#merge(hash)
-        .then(() => {
-          this.state$.next(EUploadClientState.UploadSuccessfully);
-        })
-        .catch(this.#handleError);
-    } catch (error) {
-      this.#handleError(error);
-    }
+    this.#subscription.add(this.#pool!.error$.subscribe(this.#handleError));
+    this.#subscription.add(this.#pool!.progress$.subscribe(this.progress$));
   }
 
   #handleError = (error: unknown) => {
@@ -148,15 +132,54 @@ export class UploadClient {
     this.#pool?.stop();
   };
 
-  #split() {
-    const chunks: Blob[] = [];
-    let cur = 0;
-    while (cur < this.file.size) {
-      const piece = this.file.slice(cur, cur + this.chunkSize);
-      chunks.push(piece);
-      cur += this.chunkSize;
+  #run(autoUpload = false) {
+    if (this.#destroyed) {
+      this.#handleError(new Error("UploadClient has been destroyed"));
     }
-    return chunks;
+
+    this.#subscription.unsubscribe();
+    this.#pool?.destroy();
+    this.#pool = null;
+    this.#subscription = new Subscription();
+
+    this.#subscription.add(
+      from(this.#checkExists())
+        .pipe(
+          switchMap(({ chunks, exists, hash }) => {
+            if (exists) {
+              // Directly set the state
+              this.state$.next(EUploadClientState.FastUploaded);
+              this.progress$.next(100);
+              return of(null); // Return a completed observable to end the chain
+            } else {
+              // Transition to createPool using switchMap
+              return from(this.#createPool(hash, chunks)).pipe(
+                tap(() => {
+                  if (autoUpload) {
+                    this.startPool();
+                  } else {
+                    this.state$.next(EUploadClientState.WaitForUpload);
+                  }
+                }),
+                concatMap(() =>
+                  this.#pool!.state$.pipe(
+                    filter((state) => state === PromisePool.EState.Complete),
+                    map(() => {
+                      this.state$.next(EUploadClientState.Merging);
+                      return from(this.#merge(hash));
+                    })
+                  )
+                )
+              );
+            }
+          }),
+          tap(() => this.state$.next(EUploadClientState.UploadSuccessfully)),
+          take(1)
+        )
+        .subscribe({
+          error: this.#handleError,
+        })
+    );
   }
 
   start = once(this.#run);
@@ -171,13 +194,22 @@ export class UploadClient {
   }
 
   stopPool() {
+    // TODO fix
     if (this.#pool) {
       this.#pool.stop();
       this.state$.next(EUploadClientState.UploadStopped);
     }
   }
 
+  #merge(hash: string) {
+    return this.actions.merge(hash);
+  }
+
   destroy() {
+    this.progress$.complete();
+    this.error$.complete();
+    this.state$.complete();
+    this.#destroyed = true;
     this.#subscription.unsubscribe();
     this.#pool?.destroy();
   }
