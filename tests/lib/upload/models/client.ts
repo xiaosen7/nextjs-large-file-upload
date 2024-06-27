@@ -3,7 +3,7 @@ import {
   IUploadClientActions,
   UploadClient,
 } from "@/upload/models/client";
-import { filter } from "rxjs";
+import { filter, firstValueFrom } from "rxjs";
 
 vi.mock("@/upload/utils/workers", () => {
   return {
@@ -16,171 +16,181 @@ vi.mock("@/upload/utils/workers", () => {
   };
 });
 
-describe("UploadClient", () => {
-  const createClient = (partialActions: Partial<IUploadClientActions>) => {
-    const file = new File(["hello world"], "test.name");
-    const actions: IUploadClientActions = {
-      async chunkExists(hash, index) {
-        return false;
-      },
-      async uploadChunk(formData) {
-        return;
-      },
-      async fileExists() {
-        return false;
-      },
-      async merge(hash) {
-        return;
-      },
-      async getLastExistedChunkIndex() {
-        return -1;
-      },
-      ...partialActions,
-    };
-    return new UploadClient(file, actions);
+function createClientTestUtils(
+  partialActions: Partial<IUploadClientActions> = {}
+) {
+  const file = new File(["hello world"], "test.name");
+  const actions: IUploadClientActions = {
+    async chunkExists(hash, index) {
+      return false;
+    },
+    async uploadChunk(formData) {
+      return;
+    },
+    async fileExists() {
+      return false;
+    },
+    async merge(hash) {
+      return;
+    },
+    async getLastExistedChunkIndex() {
+      return -1;
+    },
+    ...partialActions,
   };
+  const client = new UploadClient(file, actions);
 
-  const doTest = async ({
-    partialActions,
-    autoUpload,
-    expectedStateSequence,
-    onStuck,
-    expectedError,
-  }: {
-    partialActions: Partial<IUploadClientActions>;
-    autoUpload: boolean;
-    expectedStateSequence: EUploadClientState[];
-    onStuck?: (
-      client: UploadClient,
-      expectStateSequence: (expectedStateSequence: EUploadClientState[]) => void
-    ) => Promise<void>;
-    expectedError?: unknown;
-  }) => {
-    const client = createClient(partialActions);
+  const stateObserver = vi.fn();
+  client.state$.subscribe(stateObserver);
 
-    const stateObserver = vi.fn((state): void => {
-      console.log(EUploadClientState[state]);
-    });
+  const errorObserver = vi.fn();
+  client.error$.subscribe(errorObserver);
 
-    client.state$.subscribe(stateObserver);
-
-    const progressObserver = vi.fn();
-    client.progress$.subscribe(progressObserver);
-
-    const errorObserver = vi.fn();
-    client.error$.subscribe(errorObserver);
-
-    await new Promise((resolve) => {
-      if (autoUpload) {
-        client.start(true);
-      } else {
-        client.start(false);
-        client.state$
-          .pipe(filter((state) => state === UploadClient.EState.WaitForUpload))
-          .subscribe(resolve);
-      }
-    });
-
-    const expectNextStateSequence = (
-      expectedStateSequence: EUploadClientState[]
-    ) => {
-      fullStateSequence.push(...expectedStateSequence);
-    };
-
-    const fullStateSequence = expectedStateSequence.slice();
-    await onStuck?.(client, expectNextStateSequence);
-
-    expect(stateObserver).toHaveBeenCalledTimes(fullStateSequence.length);
-    fullStateSequence.forEach((state, index) => {
-      expect(stateObserver).toHaveBeenNthCalledWith(index + 1, state);
-    });
-
-    if (expectedError) {
+  return {
+    client,
+    waitState: async (targetState: EUploadClientState) => {
+      await firstValueFrom(
+        client.state$.pipe(filter((state) => state === targetState))
+      );
+    },
+    expectStateSequence: (expectedStateSequence: EUploadClientState[]) => {
+      expect(stateObserver).toHaveBeenCalledTimes(expectedStateSequence.length);
+      expectedStateSequence.forEach((state, index) => {
+        expect(stateObserver).toHaveBeenNthCalledWith(index + 1, state);
+      });
+    },
+    expectError: (expectedError: Error) => {
       expect(errorObserver).toHaveBeenCalledWith(expectedError);
-    } else {
-      expect(progressObserver).toHaveBeenLastCalledWith(100);
-    }
-
-    return client;
+    },
+    expectProgress: (expectedProgress: number) => {
+      expect(client.progress$.value).toBe(expectedProgress);
+    },
   };
-  test("upload normally", async () => {
-    await doTest({
-      partialActions: { fileExists: async () => false },
-      autoUpload: true,
-      expectedStateSequence: [
-        UploadClient.EState.Default,
-        UploadClient.EState.CalculatingHash,
-        UploadClient.EState.CheckingFileExists,
-        UploadClient.EState.Uploading,
-        UploadClient.EState.Merging,
-        UploadClient.EState.UploadSuccessfully,
-      ],
-    });
+}
+
+describe("UploadClient", () => {
+  test("normal upload", async () => {
+    const { client, expectStateSequence, waitState } = createClientTestUtils();
+
+    client.start();
+    await waitState(UploadClient.EState.WaitForUpload);
+    client.startPool();
+    await waitState(UploadClient.EState.UploadSuccessfully);
+
+    const expectedStateSequence = [
+      UploadClient.EState.Default,
+      UploadClient.EState.CalculatingHash,
+      UploadClient.EState.CheckingFileExists,
+      UploadClient.EState.WaitForUpload,
+      UploadClient.EState.Uploading,
+      UploadClient.EState.Merging,
+      UploadClient.EState.UploadSuccessfully,
+    ];
+    expectStateSequence(expectedStateSequence);
+  });
+
+  test("auto upload", async () => {
+    const { client, waitState, expectStateSequence } = createClientTestUtils();
+
+    const autoUpload = true;
+    client.start(autoUpload);
+    await waitState(UploadClient.EState.UploadSuccessfully);
+    expectStateSequence([
+      UploadClient.EState.Default,
+      UploadClient.EState.CalculatingHash,
+      UploadClient.EState.CheckingFileExists,
+      UploadClient.EState.Uploading,
+      UploadClient.EState.Merging,
+      UploadClient.EState.UploadSuccessfully,
+    ]);
   });
 
   test("fast upload", async () => {
-    const client = await doTest({
-      partialActions: { fileExists: async () => true },
-      autoUpload: true,
-      expectedStateSequence: [
-        UploadClient.EState.Default,
-        UploadClient.EState.CalculatingHash,
-        UploadClient.EState.CheckingFileExists,
-        UploadClient.EState.FastUploaded,
-      ],
+    const { client, waitState, expectStateSequence } = createClientTestUtils({
+      fileExists: async () => true,
     });
 
-    client.startPool();
-  });
-
-  test("upload manually", async () => {
-    await doTest({
-      partialActions: { fileExists: async () => false },
-      autoUpload: false,
-      expectedStateSequence: [
-        UploadClient.EState.Default,
-        UploadClient.EState.CalculatingHash,
-        UploadClient.EState.CheckingFileExists,
-        UploadClient.EState.WaitForUpload,
-      ],
-      onStuck: async (client, expectNextStateSequence) => {
-        client.startPool();
-        client.stopPool();
-        client.startPool();
-        expectNextStateSequence([
-          UploadClient.EState.Uploading,
-          UploadClient.EState.UploadStopped,
-          UploadClient.EState.Uploading,
-          UploadClient.EState.Merging,
-          UploadClient.EState.UploadSuccessfully,
-        ]);
-        await client.start();
-      },
-    });
+    client.start();
+    await waitState(UploadClient.EState.FastUploaded);
+    expectStateSequence([
+      UploadClient.EState.Default,
+      UploadClient.EState.CalculatingHash,
+      UploadClient.EState.CheckingFileExists,
+      UploadClient.EState.FastUploaded,
+    ]);
   });
 
   test("error", async () => {
-    const error = new Error("error");
-    await doTest({
-      partialActions: {
-        fileExists: async () => {
-          throw error;
-        },
+    const expectedError = new Error("error");
+    const { client, waitState, expectError } = createClientTestUtils({
+      fileExists: async () => {
+        throw expectedError;
       },
-      autoUpload: true,
-      expectedStateSequence: [
-        UploadClient.EState.Default,
-        UploadClient.EState.CalculatingHash,
-        UploadClient.EState.CheckingFileExists,
-        UploadClient.EState.Error,
-      ],
-      expectedError: error,
+    });
+
+    client.start();
+    await waitState(UploadClient.EState.Error);
+    expectError(expectedError);
+  });
+
+  describe("progress", () => {
+    test("normal upload", async () => {
+      const { client, waitState, expectProgress } = createClientTestUtils();
+      expectProgress(0);
+
+      client.start();
+
+      await waitState(UploadClient.EState.CheckingFileExists);
+      expectProgress(0);
+
+      await waitState(UploadClient.EState.WaitForUpload);
+      expectProgress(0);
+
+      client.startPool();
+
+      await waitState(UploadClient.EState.Merging);
+      expectProgress(100);
+
+      await waitState(UploadClient.EState.UploadSuccessfully);
+      expectProgress(100);
+    });
+
+    test("fast uploaded", async () => {
+      const { client, waitState, expectProgress } = createClientTestUtils({
+        fileExists: async () => true,
+      });
+
+      expectProgress(0);
+
+      client.start();
+
+      await waitState(UploadClient.EState.CheckingFileExists);
+      expectProgress(0);
+
+      await waitState(UploadClient.EState.FastUploaded);
+      expectProgress(100);
     });
   });
 
-  // test("destroy", async () => {
-  //   const client = createClient({});
-  //   client.destroy();
-  //   expect(vi.fn(() => client.start())).rejects.toBeInstanceOf(Error);
-  // });
+  test("destroy", async () => {
+    const { client, waitState } = createClientTestUtils({});
+
+    client.start(true);
+    await waitState(UploadClient.EState.Uploading);
+
+    const completeFn = vi.fn();
+
+    client.state$.subscribe({
+      complete: completeFn,
+    });
+    client.progress$.subscribe({
+      complete: completeFn,
+    });
+    client.error$.subscribe({
+      complete: completeFn,
+    });
+    client.destroy();
+
+    expect(completeFn).toHaveBeenCalledTimes(3);
+  });
 });

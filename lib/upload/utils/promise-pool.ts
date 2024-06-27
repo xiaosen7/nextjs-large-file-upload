@@ -55,7 +55,6 @@ export class PromisePool<TData = any, TValue = any> {
   }
 
   async stop() {
-    console.log("pool stopped");
     this.state$.next(EPromisePoolState.Stopped);
     if (this.#stopPromise) {
       return;

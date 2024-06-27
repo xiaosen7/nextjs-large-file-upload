@@ -1,13 +1,13 @@
 import { once } from "lodash-es";
 import {
   BehaviorSubject,
+  NEVER,
   Subject,
   Subscription,
   concatMap,
   filter,
   from,
   map,
-  of,
   switchMap,
   take,
   tap,
@@ -150,7 +150,7 @@ export class UploadClient {
               // Directly set the state
               this.state$.next(EUploadClientState.FastUploaded);
               this.progress$.next(100);
-              return of(null); // Return a completed observable to end the chain
+              return NEVER; // Return a completed observable to end the chain
             } else {
               // Transition to createPool using switchMap
               return from(this.#createPool(hash, chunks)).pipe(
