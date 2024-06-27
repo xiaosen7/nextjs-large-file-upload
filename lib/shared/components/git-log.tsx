@@ -15,8 +15,8 @@ export const GitLog: React.FC<{}> = (props) => {
   }, []);
   return mp(
     props,
-    <div className="text-gray-500 text-xs items-center justify-center flex gap-2">
-      {log}
+    <div className="text-gray-500 text-xs items-center justify-center flex gap-2 max-md:flex-col">
+      <div>{log}</div>
       <Link
         target="_blank"
         href={"https://github.com/xiaosen7/nextjs-large-file-upload-demo"}
