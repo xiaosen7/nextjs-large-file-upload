@@ -1,9 +1,5 @@
-import { exists } from "fs";
 import MultiStream from "multistream";
 import { Readable, Writable } from "stream";
-import { promisify } from "util";
-
-const existsAsync = promisify(exists);
 
 export abstract class UploadStorage {
   abstract exists(path: string): Promise<boolean>;
