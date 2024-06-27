@@ -1,6 +1,23 @@
 import { CHUNKS_DIR, COMBINED_FILE_NAME } from "@/upload/constants";
 import { range } from "lodash-es";
-import { CustomReadableStream, createSlicer } from "./test-utils";
+
+import { UploadSlicer } from "@/upload/models/slicer";
+import { MemoryStorage } from "@/upload/models/storages/memory";
+
+export function createSlicer() {
+  const hash = "123456";
+  const storage = new MemoryStorage();
+  const slicer = new UploadSlicer(hash, storage);
+
+  return {
+    hash,
+    storage,
+    slicer,
+    clear: () => MemoryStorage.clear(),
+  };
+}
+
+import { MemoryReadableStream as CustomReadableStream } from "@/upload/models/storages/memory";
 
 describe("UploadSlicer", () => {
   let { slicer, hash, storage, clear } = createSlicer();
