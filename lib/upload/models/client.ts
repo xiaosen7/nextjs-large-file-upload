@@ -81,9 +81,11 @@ export class UploadClient {
       process: async (chunk, index) => {
         const exists = await this.actions.chunkExists(hash, index);
         if (!exists) {
-          await this.actions.uploadChunk(
-            createFormData({ hash, chunk, index })
-          );
+          await this.actions
+            .uploadChunk(createFormData({ hash, chunk, index }))
+            .then((error) => {
+              console.error("捕获到错误", error);
+            });
         }
       },
     });
