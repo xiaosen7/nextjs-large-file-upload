@@ -17,7 +17,7 @@ import { sentenceCase } from "change-case";
 import { get, set, uniqueId } from "lodash-es";
 import { useObservable } from "rcrx";
 import React, { memo, useEffect, useRef, useState } from "react";
-import { Observable, throttleTime } from "rxjs";
+import { Observable } from "rxjs";
 import { CHUNK_SIZE, CONCURRENCY } from "../constants";
 import { IUploadClientActions, UploadClient } from "../models/client";
 import { IUploadSetting, UploadSetting } from "./setting";
@@ -66,7 +66,13 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
   return (
     <div className="flex flex-col gap-4 border border-solid py-4">
       <div className="flex gap-4 px-4">
-        <Input className="flex-1" multiple type="file" onChange={onChange} />{" "}
+        <Input
+          value={""}
+          className="flex-1 text-[0]"
+          multiple
+          type="file"
+          onChange={onChange}
+        />
         <UploadSetting
           value={setting}
           onChange={setSetting}
@@ -125,12 +131,7 @@ const UploadSingleFile = memo(function UploadSingleFile(
     client.restart(AUTO_UPLOAD);
   });
 
-  const state = useObservable(
-    client.state$.pipe(
-      throttleTime(200, undefined, { leading: false, trailing: true })
-    ),
-    client.state$.value
-  );
+  const state = useObservable(client.state$, UploadClient.EState.Default);
   const error = useObservable(client.error$, null);
 
   useEffect(() => {
@@ -184,12 +185,7 @@ const UploadSingleFile = memo(function UploadSingleFile(
 const UploadStateIcon: React.FC<{
   state$: UploadClient["state$"];
 }> = ({ state$ }) => {
-  const state = useObservable(
-    state$.pipe(
-      throttleTime(200, undefined, { leading: false, trailing: true })
-    ),
-    state$.value
-  );
+  const state = useObservable(state$, UploadClient.EState.Default);
 
   switch (state) {
     case UploadClient.EState.Uploading:
@@ -222,20 +218,9 @@ const UploadControl: React.FC<IUploadControlProps> = ({
   onRestart,
   state$,
 }) => {
-  const state = useObservable(
-    state$.pipe(
-      throttleTime(200, undefined, { leading: false, trailing: true })
-    ),
-    state$.value
-  );
+  const state = useObservable(state$, UploadClient.EState.Default);
 
   switch (state) {
-    // case UploadClient.EState.Default:
-    // return null;
-
-    // case UploadClient.EState.CalculatingHash:
-    // return <span className="text-xs">Analysis...</span>;
-
     case UploadClient.EState.WaitForUpload:
     case UploadClient.EState.UploadStopped:
       return <PlayIcon onClick={onPlay} className="cursor-pointer" />;

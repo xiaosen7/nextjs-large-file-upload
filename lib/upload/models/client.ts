@@ -1,5 +1,11 @@
 import { once } from "lodash-es";
-import { BehaviorSubject, Subject, Subscription, filter } from "rxjs";
+import {
+  BehaviorSubject,
+  Subject,
+  Subscription,
+  filter,
+  firstValueFrom,
+} from "rxjs";
 import { CHUNK_SIZE, CONCURRENCY } from "../constants";
 import { PromisePool } from "../utils/promise-pool";
 import { createFormData } from "../utils/type";
@@ -74,7 +80,7 @@ export class UploadClient {
     };
   }
 
-  #createUploadChunksPool(hash: string, chunks: Blob[]) {
+  #createPool(hash: string, chunks: Blob[]) {
     this.#pool = new PromisePool({
       data: chunks,
       concurrency: this.concurrency,
@@ -94,7 +100,7 @@ export class UploadClient {
   }
 
   async #run(autoUpload = false) {
-    // this.#pool?.destroy();
+    this.#pool?.destroy();
     this.#pool = null;
     this.#subscription.unsubscribe();
     this.#subscription = new Subscription();
@@ -107,33 +113,30 @@ export class UploadClient {
         return;
       }
 
-      return new Promise<void>((resolve) => {
-        this.#createUploadChunksPool(hash, chunks);
-        this.#subscription.add(
-          this.#pool!.state$.pipe(
-            filter((state) => state === PromisePool.EState.Complete)
-          ).subscribe(() => {
-            this.state$.next(EUploadClientState.Merging);
-            resolve(
-              this.#merge(hash)
-                .then(() => {
-                  this.state$.next(EUploadClientState.UploadSuccessfully);
-                })
-                .catch(this.#handleError)
-            );
-          })
-        );
+      this.#createPool(hash, chunks);
 
-        this.#subscription.add(this.#pool!.error$.subscribe(this.#handleError));
+      this.#subscription.add(this.#pool!.error$.subscribe(this.#handleError));
+      this.#subscription.add(this.#pool!.progress$.subscribe(this.progress$));
 
-        this.#subscription.add(this.#pool!.progress$.subscribe(this.progress$));
+      if (autoUpload) {
+        this.startPool();
+      } else {
+        this.state$.next(EUploadClientState.WaitForUpload);
+      }
 
-        if (autoUpload) {
-          this.startPool();
-        } else {
-          this.state$.next(EUploadClientState.WaitForUpload);
-        }
-      });
+      await firstValueFrom(
+        this.#pool!.state$.pipe(
+          filter((state) => state === PromisePool.EState.Complete)
+        )
+      );
+
+      this.state$.next(EUploadClientState.Merging);
+
+      await this.#merge(hash)
+        .then(() => {
+          this.state$.next(EUploadClientState.UploadSuccessfully);
+        })
+        .catch(this.#handleError);
     } catch (error) {
       this.#handleError(error);
     }

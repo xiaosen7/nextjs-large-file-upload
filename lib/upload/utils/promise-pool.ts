@@ -107,7 +107,6 @@ export class PromisePool<TData = any, TValue = any> {
           };
         })
         .catch((error) => {
-          console.log("error happen", error);
           this.error$.next(error);
           this.#results[promiseIndex] = {
             value: null,
