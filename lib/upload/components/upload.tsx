@@ -6,11 +6,10 @@ import { Progress } from "@/shared/components/ui/progress";
 import { mp } from "@/shared/utils/jsx";
 import {
   CheckIcon,
-  ExclamationTriangleIcon,
+  Cross2Icon,
   PauseIcon,
   PlayIcon,
   ReloadIcon,
-  RocketIcon,
   TrashIcon,
 } from "@radix-ui/react-icons";
 import { useCreation, useLocalStorageState, useMemoizedFn } from "ahooks";
@@ -65,8 +64,8 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
   }) satisfies React.ComponentProps<"input">["onChange"]);
 
   return (
-    <div className="flex flex-col gap-4 border border-solid p-4">
-      <div className="flex gap-4">
+    <div className="flex flex-col gap-4 border border-solid py-4">
+      <div className="flex gap-4 px-4">
         <Input className="flex-1" multiple type="file" onChange={onChange} />{" "}
         <UploadSetting
           value={setting}
@@ -75,7 +74,7 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
         />
       </div>
 
-      <div ref={scrollContainerRef} className="h-64 overflow-auto">
+      <div ref={scrollContainerRef} className="h-64 overflow-auto px-4">
         {files.map((file) => (
           <UploadSingleFile
             key={file.id}
@@ -156,15 +155,20 @@ const UploadSingleFile = memo(function UploadSingleFile(
           {file.name}
         </div>
 
-        <div title={stateString} className="text-xs truncate text-gray-500">
+        <div
+          title={stateString}
+          className="text-gray-500 text-xs truncate flex gap-2"
+        >
           {stateString}
+
+          <UploadStateIcon state$={client.state$} />
         </div>
       </div>
 
       <div className="flex gap-2 items-center">
         <RxProgress value$={client.progress$} />
         <div className="w-20 flex items-center justify-center">
-          <UploaderController
+          <UploadControl
             state$={client.state$}
             onPlay={onPlay}
             onStop={onStop}
@@ -177,13 +181,42 @@ const UploadSingleFile = memo(function UploadSingleFile(
   );
 });
 
-interface IUploaderControllerProps {
+const UploadStateIcon: React.FC<{
+  state$: UploadClient["state$"];
+}> = ({ state$ }) => {
+  const state = useObservable(
+    state$.pipe(
+      throttleTime(200, undefined, { leading: false, trailing: true })
+    ),
+    state$.value
+  );
+
+  switch (state) {
+    case UploadClient.EState.Uploading:
+    case UploadClient.EState.CheckingFileExists:
+    case UploadClient.EState.CalculatingHash:
+    case UploadClient.EState.Merging:
+      return <Loading />;
+
+    case UploadClient.EState.UploadSuccessfully:
+    case UploadClient.EState.FastUploaded:
+      return <CheckIcon />;
+
+    case UploadClient.EState.Error:
+      return <Cross2Icon color="red" />;
+
+    default:
+      return null;
+  }
+};
+
+interface IUploadControlProps {
   onPlay?: () => void;
   onStop?: () => void;
   onRestart?: () => void;
   state$: UploadClient["state$"];
 }
-const UploaderController: React.FC<IUploaderControllerProps> = ({
+const UploadControl: React.FC<IUploadControlProps> = ({
   onPlay,
   onStop,
   onRestart,
@@ -197,11 +230,11 @@ const UploaderController: React.FC<IUploaderControllerProps> = ({
   );
 
   switch (state) {
-    case UploadClient.EState.Default:
-      return null;
+    // case UploadClient.EState.Default:
+    // return null;
 
-    case UploadClient.EState.CalculatingHash:
-      return <span className="text-xs">Analysis...</span>;
+    // case UploadClient.EState.CalculatingHash:
+    // return <span className="text-xs">Analysis...</span>;
 
     case UploadClient.EState.WaitForUpload:
     case UploadClient.EState.UploadStopped:
@@ -210,34 +243,18 @@ const UploaderController: React.FC<IUploaderControllerProps> = ({
     case UploadClient.EState.Uploading:
       return <PauseIcon onClick={onStop} className="cursor-pointer" />;
 
-    case UploadClient.EState.UploadSuccessfully:
-      return (
-        <div className="flex gap-2">
-          <CheckIcon />
-          <ReloadIcon onClick={onRestart} className="cursor-pointer" />
-        </div>
-      );
-
-    case UploadClient.EState.FastUploaded:
-      return <RocketIcon />;
-
     case UploadClient.EState.Error:
-      return (
-        <div className="flex gap-2">
-          <ExclamationTriangleIcon color="red" />{" "}
-          <ReloadIcon onClick={onRestart} className="cursor-pointer" />
-        </div>
-      );
+      return <ReloadIcon onClick={onRestart} className="cursor-pointer" />;
 
     default:
-      return <Loading />;
+      return null;
   }
 };
 
-interface IUploaderInfoProps {
+interface IRxProgressProps {
   value$: Observable<number>;
 }
-const RxProgress: React.FC<IUploaderInfoProps> = ({ value$ }) => {
+const RxProgress: React.FC<IRxProgressProps> = ({ value$ }) => {
   const value = useObservable(value$, 0);
 
   return <Progress className="h-1 my-2" value={value} />;

@@ -48,7 +48,7 @@ export class UploadClient {
     private chunkSize = CHUNK_SIZE
   ) {}
 
-  #calcHash = once(async () => {
+  #calcHash = async () => {
     const chunks = this.#split();
     this.state$.next(EUploadClientState.CalculatingHash);
     const hash = await calculateChunksHashByWorker(chunks, (progress) => {
@@ -59,7 +59,7 @@ export class UploadClient {
       hash,
       chunks,
     };
-  });
+  };
 
   async #checkExists() {
     const { chunks, hash } = await this.#calcHash();
