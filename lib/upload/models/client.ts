@@ -133,6 +133,7 @@ export class UploadClient {
   }
 
   #handleError = (error: unknown) => {
+    console.log(error);
     this.state$.next(EUploadClientState.Error);
     this.error$.next(error);
     this.#pool?.stop();

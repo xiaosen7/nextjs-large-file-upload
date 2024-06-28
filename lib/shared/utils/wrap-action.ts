@@ -24,7 +24,7 @@ export function wrapAction<T extends (...args: any) => Promise<any>>(
       data,
       error: error
         ? {
-            message: error?.message,
+            message: error.message,
           }
         : undefined,
     };
