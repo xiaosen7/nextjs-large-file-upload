@@ -49,8 +49,8 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 
 ## TODO
 
-- hash validation in chunk.
 - Concurrency number should be determined by the performance of server and browser.
+- Do not to store all chunks of a file in memory in the same time to save memory.
 
 ## Record of problems
 
