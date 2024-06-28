@@ -1,5 +1,6 @@
 import { Readable } from "stream";
 import { CHUNKS_DIR, COMBINED_FILE_NAME } from "../constants";
+import { checkChunks } from "../utils/chunks";
 import { pump } from "../utils/pump";
 import { UploadStorage } from "./storage";
 
@@ -44,30 +45,20 @@ export class UploadSlicer {
     );
   }
 
+  async #removeChunksDir() {
+    await this.storage.rmdir(this.#chunksDir);
+  }
+
   async merge() {
     const chunkIndices = await this.#getSortedExistedChunkIndices();
-
-    const totalChunks = chunkIndices.length;
-    if (totalChunks < 1) {
-      throw new Error("no chunks found");
-    }
-
-    if (chunkIndices[0] !== 0) {
-      throw new Error("chunk sequence is not correct");
-    }
-
-    // check the sequence is correct
-    for (let i = 0; i < totalChunks - 1; i++) {
-      if (chunkIndices[i] + 1 !== chunkIndices[i + 1]) {
-        throw new Error("chunk sequence is not correct");
-      }
-    }
-
+    checkChunks(chunkIndices);
     const sourcePaths = chunkIndices.map((basename) =>
       this.storage.joinPaths(this.#chunksDir, String(basename))
     );
 
     const dest = this.getFilePath();
-    return this.storage.merge(sourcePaths, dest);
+    await this.storage.merge(sourcePaths, dest);
+
+    await this.#removeChunksDir();
   }
 }

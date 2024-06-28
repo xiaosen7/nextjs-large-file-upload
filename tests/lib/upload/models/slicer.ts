@@ -70,19 +70,34 @@ describe("UploadSlicer", () => {
     expect(await slicer.getLastExistedChunkIndex()).toBe(chunkCount - 1);
   });
 
-  test("merge", async () => {
-    const chunkCount = 100;
-    await Promise.all(
-      range(chunkCount).map((index) =>
-        slicer.writeChunk(0, new CustomReadableStream(`${index}`))
-      )
-    );
+  describe("merge", () => {
+    test("should create new file", async () => {
+      const chunkCount = 100;
+      await Promise.all(
+        range(chunkCount).map((index) =>
+          slicer.writeChunk(index, new CustomReadableStream(`${index}`))
+        )
+      );
 
-    expect(await slicer.fileExists()).toBeFalsy();
+      expect(await slicer.fileExists()).toBeFalsy();
 
-    await slicer.merge();
+      await slicer.merge();
 
-    expect(await slicer.fileExists()).toBeTruthy();
-    expect(await storage.exists(slicer.getFilePath())).toBeTruthy();
+      expect(await slicer.fileExists()).toBeTruthy();
+      expect(await storage.exists(slicer.getFilePath())).toBeTruthy();
+    });
+
+    test("should remove chunks", async () => {
+      const chunkCount = 1;
+      await Promise.all(
+        range(chunkCount).map((index) =>
+          slicer.writeChunk(0, new CustomReadableStream(`${index}`))
+        )
+      );
+
+      expect(await storage.exists(slicer.getChunkPath(0))).toBeTruthy();
+      await slicer.merge();
+      expect(await storage.exists(slicer.getChunkPath(0))).toBeFalsy();
+    });
   });
 });
