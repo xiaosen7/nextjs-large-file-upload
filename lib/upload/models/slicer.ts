@@ -1,3 +1,4 @@
+import { IS_VERCEL } from "@/shared/constants";
 import { ERRORS } from "@/shared/constants/errors";
 import MultiStream from "multistream";
 import { Readable } from "stream";
@@ -69,6 +70,11 @@ export class UploadSlicer {
   }
 
   async #validateHash(chunkIndices: number[]) {
+    if (IS_VERCEL) {
+      // skip hash validation in vercel deployment
+      return;
+    }
+
     const input = await this.#createMultiChunksStream(chunkIndices);
 
     const hash = await new Promise<string>((resolve, reject) => {
