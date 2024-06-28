@@ -51,3 +51,12 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 - hash check in chunk.
 - Consider upload a same file in same time in deferent endpoint.
 - Concurrency number should be determined by the performance of server and browser.
+
+## Record of problems
+
+### client.destroy()
+
+In the old version of `Client` model, `start()` method is asynchronous and there is a promise chain inside it. When I call `destroy()` method I want to stop the chain which may be running at that time, I need to create a condition determining
+that current state is destroyed or not for each micro task. Because if `client` has been destroyed, it should not go to next chain. So the code becomes bad.
+
+Finally I found a solution using `RxJS`, I turn the promise chain to stream with `operators`, create a `subscription` property which store all subscriptions, call the `subscription.unsubscribe()` inside the `destroy()`. So when call `destroy()`, all the subscriptions would be unsubscribed and the stream will be stopped.
