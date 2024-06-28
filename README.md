@@ -50,3 +50,4 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 - Hash check in merging.
 - hash check in chunk.
 - Consider upload a same file in same time in deferent endpoint.
+- Concurrency number should be determined by the performance of server and browser.
