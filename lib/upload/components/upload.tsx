@@ -18,7 +18,7 @@ import { get, uniqueId } from "lodash-es";
 import { useObservable } from "rcrx";
 import React, { memo, useEffect, useRef } from "react";
 import { Observable } from "rxjs";
-import { CHUNK_SIZE, CONCURRENCY } from "../constants";
+import { DEFAULTS } from "../constants/defaults";
 import { IUploadClientActions, UploadClient } from "../models/client";
 import { IUploadSetting, UploadSetting } from "./setting";
 
@@ -37,8 +37,8 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
     "uploadSetting",
     {
       defaultValue: {
-        chunkSize: CHUNK_SIZE,
-        concurrency: CONCURRENCY,
+        chunkSize: DEFAULTS.chunkSize,
+        concurrency: DEFAULTS.concurrency,
       },
     }
   );

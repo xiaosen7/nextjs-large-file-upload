@@ -4,8 +4,9 @@ import {
   UploadClient,
 } from "@/upload/models/client";
 import { filter, firstValueFrom } from "rxjs";
+import { nameOf } from "../../../test-utils";
 
-vi.mock("@/upload/utils/workers", () => {
+vi.mock("@/upload/workers/calculate-hash", () => {
   return {
     calculateChunksHashByWorker(
       chunks: Blob[],
@@ -68,7 +69,7 @@ function createClientTestUtils(
   };
 }
 
-describe("UploadClient", () => {
+describe(UploadClient.name, () => {
   test("normal upload", async () => {
     const { client, expectStateSequence, waitState } = createClientTestUtils();
 
@@ -120,20 +121,30 @@ describe("UploadClient", () => {
     ]);
   });
 
-  test("error", async () => {
-    const expectedError = new Error("error");
-    const { client, waitState, expectError } = createClientTestUtils({
-      fileExists: async () => {
-        throw expectedError;
-      },
-    });
+  describe("error", () => {
+    const testActionError = (actionName: keyof IUploadClientActions) => {
+      test(`should catch error throw from ${actionName}() action`, async () => {
+        const expectedError = new Error("error");
+        const { client, waitState, expectError } = createClientTestUtils({
+          [actionName]: async () => {
+            throw expectedError;
+          },
+        });
 
-    client.start();
-    await waitState(UploadClient.EState.Error);
-    expectError(expectedError);
+        client.start(true);
+        await waitState(UploadClient.EState.Error);
+        expectError(expectedError);
+      });
+    };
+
+    testActionError("chunkExists");
+    testActionError("fileExists");
+    testActionError("getLastExistedChunkIndex");
+    testActionError("merge");
+    testActionError("uploadChunk");
   });
 
-  describe("progress", () => {
+  describe(nameOf<UploadClient>("progress$"), () => {
     test("normal upload", async () => {
       const { client, waitState, expectProgress } = createClientTestUtils();
       expectProgress(0);
@@ -172,7 +183,7 @@ describe("UploadClient", () => {
     });
   });
 
-  test("destroy", async () => {
+  test(nameOf<UploadClient>("destroy"), async () => {
     const { client, waitState } = createClientTestUtils({});
 
     client.start(true);
@@ -192,5 +203,21 @@ describe("UploadClient", () => {
     client.destroy();
 
     expect(completeFn).toHaveBeenCalledTimes(3);
+  });
+
+  test("UploadSuccessfully state should wait for merging", async () => {
+    const delay = (ms: number) => new Promise<void>((rs) => setTimeout(rs, ms));
+    const { client, waitState } = createClientTestUtils({
+      merge: () => delay(100),
+    });
+
+    client.start(true);
+    await waitState(UploadClient.EState.Merging);
+
+    await delay(50);
+    expect(client.state$.value).toBe(UploadClient.EState.Merging);
+
+    await delay(50);
+    expect(client.state$.value).toBe(UploadClient.EState.UploadSuccessfully);
   });
 });

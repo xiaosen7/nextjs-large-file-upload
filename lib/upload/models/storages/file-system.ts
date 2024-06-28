@@ -3,7 +3,7 @@ import { mkdir, readdir, rmdir, writeFile } from "fs/promises";
 import path, { dirname, isAbsolute } from "path";
 import { Readable, Writable } from "stream";
 import { promisify } from "util";
-import { UploadStorage } from "../storage";
+import { UploadStorage } from "./base";
 
 const existsAsync = promisify(exists);
 

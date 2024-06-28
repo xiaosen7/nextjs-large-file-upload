@@ -1,13 +1,16 @@
-import { CHUNKS_DIR, COMBINED_FILE_NAME } from "@/upload/constants";
+import { DEFAULTS } from "@/upload/constants/defaults";
 import { range } from "lodash-es";
 
 import { UploadSlicer } from "@/upload/models/slicer";
 import { MemoryStorage } from "@/upload/models/storages/memory";
 
 export function createSlicer() {
-  const hash = "123456";
+  const hash = "";
   const storage = new MemoryStorage();
-  const slicer = new UploadSlicer(hash, storage);
+  const slicer = new UploadSlicer(hash, storage, () => ({
+    append: () => {},
+    end: () => "",
+  }));
 
   return {
     hash,
@@ -17,9 +20,11 @@ export function createSlicer() {
   };
 }
 
+import { ERRORS } from "@/upload/constants/errors";
 import { MemoryReadableStream as CustomReadableStream } from "@/upload/models/storages/memory";
+import { nameOf } from "../../../test-utils";
 
-describe("UploadSlicer", () => {
+describe(UploadSlicer.name, () => {
   let { slicer, hash, storage, clear } = createSlicer();
 
   beforeEach(() => {
@@ -30,34 +35,34 @@ describe("UploadSlicer", () => {
     clear();
   });
 
-  test("getChunkPath", () => {
+  test(nameOf<UploadSlicer>("getChunkPath"), () => {
     expect(slicer.getChunkPath(0)).toBe(
-      storage.resolvePaths(hash, CHUNKS_DIR, "0")
+      storage.resolvePaths(hash, DEFAULTS.chunksDir, "0")
     );
   });
 
-  test("getFilePath", () => {
+  test(nameOf<UploadSlicer>("getFilePath"), () => {
     expect(slicer.getFilePath()).toBe(
-      storage.resolvePaths(hash, COMBINED_FILE_NAME)
+      storage.resolvePaths(hash, DEFAULTS.mergedFileName)
     );
   });
 
-  test("exists", async () => {
+  test(nameOf<UploadSlicer>("fileExists"), async () => {
     expect(await slicer.fileExists()).toBeFalsy();
   });
 
-  test("chunkExists", async () => {
+  test(nameOf<UploadSlicer>("chunkExists"), async () => {
     expect(await slicer.chunkExists(0)).toBeFalsy();
   });
 
-  test("writeChunk", async () => {
+  test(nameOf<UploadSlicer>("writeChunk"), async () => {
     const stream = new CustomReadableStream("hello");
     await slicer.writeChunk(0, stream);
 
     expect(await slicer.chunkExists(0)).toBeTruthy();
   });
 
-  test("getLastExistedChunkIndex", async () => {
+  test(nameOf<UploadSlicer>("getLastExistedChunkIndex"), async () => {
     expect(await slicer.getLastExistedChunkIndex()).toBe(-1);
 
     const chunkCount = 3;
@@ -70,7 +75,7 @@ describe("UploadSlicer", () => {
     expect(await slicer.getLastExistedChunkIndex()).toBe(chunkCount - 1);
   });
 
-  describe("merge", () => {
+  describe(nameOf<UploadSlicer>("merge"), () => {
     test("should create new file", async () => {
       const chunkCount = 100;
       await Promise.all(
@@ -98,6 +103,19 @@ describe("UploadSlicer", () => {
       expect(await storage.exists(slicer.getChunkPath(0))).toBeTruthy();
       await slicer.merge();
       expect(await storage.exists(slicer.getChunkPath(0))).toBeFalsy();
+    });
+
+    test("should throw error if validate hash failed", async () => {
+      const slicer = new UploadSlicer("hash1", storage, () => ({
+        append: () => {},
+        end: () => "hash2",
+      }));
+
+      await slicer.writeChunk(0, new CustomReadableStream("data"));
+
+      expect(vi.fn(() => slicer.merge())).rejects.toBe(
+        ERRORS.hashValidationFailed
+      );
     });
   });
 });

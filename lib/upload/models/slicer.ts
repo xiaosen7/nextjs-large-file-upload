@@ -1,15 +1,24 @@
+import MultiStream from "multistream";
 import { Readable } from "stream";
-import { CHUNKS_DIR, COMBINED_FILE_NAME } from "../constants";
-import { checkChunks } from "../utils/chunks";
+import { DEFAULTS } from "../constants/defaults";
+import { ERRORS } from "../constants/errors";
+import { validateChunkIndices } from "../utils/chunks";
 import { pump } from "../utils/pump";
-import { UploadStorage } from "./storage";
+import { IHashCalculator } from "./hash-calculators/base";
+import { Md5HashCalculator } from "./hash-calculators/md5";
+import { UploadStorage } from "./storages/base";
 
 export class UploadSlicer {
   #rootDir: string;
   #chunksDir: string;
-  constructor(private hash: string, private storage: UploadStorage) {
+  constructor(
+    private hash: string,
+    private storage: UploadStorage,
+    private calculatorProvider: () => IHashCalculator = () =>
+      new Md5HashCalculator()
+  ) {
     this.#rootDir = this.storage.resolvePaths(this.hash);
-    this.#chunksDir = this.storage.joinPaths(this.#rootDir, CHUNKS_DIR);
+    this.#chunksDir = this.storage.joinPaths(this.#rootDir, DEFAULTS.chunksDir);
   }
 
   async #getSortedExistedChunkIndices() {
@@ -23,7 +32,7 @@ export class UploadSlicer {
   }
 
   getFilePath() {
-    return this.storage.joinPaths(this.#rootDir, COMBINED_FILE_NAME);
+    return this.storage.joinPaths(this.#rootDir, DEFAULTS.mergedFileName);
   }
 
   async getLastExistedChunkIndex() {
@@ -45,20 +54,50 @@ export class UploadSlicer {
     );
   }
 
-  async #removeChunksDir() {
-    await this.storage.rmdir(this.#chunksDir);
+  async #createMultiChunksStream(chunkIndices: number[]) {
+    const chunkPaths = chunkIndices.map((basename) =>
+      this.storage.joinPaths(this.#chunksDir, String(basename))
+    );
+
+    const inputList = await Promise.all(
+      chunkPaths.map((path) => {
+        return this.storage.createReadStream(path);
+      })
+    );
+
+    return new MultiStream(inputList);
+  }
+
+  async #validateHash(chunkIndices: number[]) {
+    const input = await this.#createMultiChunksStream(chunkIndices);
+
+    const hash = await new Promise<string>((resolve, reject) => {
+      const calculator = this.calculatorProvider();
+      input.on("data", (chunk) => {
+        calculator.append(chunk);
+      });
+      input.on("end", () => {
+        resolve(calculator.end());
+      });
+      input.on("error", reject);
+    });
+
+    if (hash !== this.hash) {
+      throw ERRORS.hashValidationFailed;
+    }
   }
 
   async merge() {
     const chunkIndices = await this.#getSortedExistedChunkIndices();
-    checkChunks(chunkIndices);
-    const sourcePaths = chunkIndices.map((basename) =>
-      this.storage.joinPaths(this.#chunksDir, String(basename))
-    );
 
-    const dest = this.getFilePath();
-    await this.storage.merge(sourcePaths, dest);
+    validateChunkIndices(chunkIndices);
+    await this.#validateHash(chunkIndices);
 
-    await this.#removeChunksDir();
+    const input = await this.#createMultiChunksStream(chunkIndices);
+    const output = await this.storage.createWriteStream(this.getFilePath());
+
+    await pump(input, output);
+
+    await this.storage.rmdir(this.#chunksDir);
   }
 }

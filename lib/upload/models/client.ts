@@ -5,18 +5,19 @@ import {
   NEVER,
   Subject,
   Subscription,
+  concatAll,
   concatMap,
   filter,
   from,
   map,
   switchMap,
-  take,
   tap,
 } from "rxjs";
-import { CHUNK_SIZE, CONCURRENCY } from "../constants";
+import { DEFAULTS } from "../constants/defaults";
+import { ERRORS } from "../constants/errors";
 import { PromisePool } from "../utils/promise-pool";
 import { createFormData } from "../utils/type";
-import { calculateChunksHashByWorker } from "../utils/workers";
+import { calculateChunksHashByWorker } from "../workers/calculate-hash";
 
 export enum EUploadClientState {
   Default,
@@ -59,8 +60,8 @@ export class UploadClient {
   constructor(
     public readonly file: File,
     private actions: IUploadClientActions,
-    private concurrency = CONCURRENCY,
-    private chunkSize = CHUNK_SIZE
+    private concurrency = DEFAULTS.concurrency,
+    private chunkSize = DEFAULTS.chunkSize
   ) {}
 
   #split() {
@@ -135,7 +136,7 @@ export class UploadClient {
 
   #run(autoUpload = false) {
     if (this.#destroyed) {
-      this.#handleError(new Error("UploadClient has been destroyed"));
+      this.#handleError(ERRORS.clientHasDestroyed);
     }
 
     this.#subscription.unsubscribe();
@@ -170,12 +171,12 @@ export class UploadClient {
                       return from(this.#merge(hash));
                     })
                   )
-                )
+                ),
+                concatAll()
               );
             }
           }),
-          tap(() => this.state$.next(EUploadClientState.UploadSuccessfully)),
-          take(1)
+          tap(() => this.state$.next(EUploadClientState.UploadSuccessfully))
         )
         .subscribe({
           error: this.#handleError,

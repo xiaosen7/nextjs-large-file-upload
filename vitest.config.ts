@@ -8,5 +8,6 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     include: ["tests/**/*.ts?(x)"],
+    exclude: ["test-utils.ts"],
   },
 });

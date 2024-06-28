@@ -1,7 +1,7 @@
-import { UploadStorage } from "@/upload/models/storage";
 import { get, set } from "lodash-es";
 import path, { isAbsolute } from "path";
 import { Readable, Writable } from "stream";
+import { UploadStorage } from "./base";
 
 let data = {};
 
@@ -15,8 +15,10 @@ class MemoryWritableStream extends Writable {
   }
 
   _write(chunk: Buffer, encoding: string, callback: () => void) {
+    const str = chunk.toString();
+
     const paths = splitPath(this.path);
-    set(data, paths, "1");
+    set(data, paths, str.length > 10 ? "_" : str);
     callback();
   }
 }
@@ -45,6 +47,10 @@ export class MemoryReadableStream extends Readable {
 export class MemoryStorage extends UploadStorage {
   static clear() {
     data = {};
+  }
+
+  static getData() {
+    return data;
   }
 
   private root: string;

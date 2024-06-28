@@ -45,12 +45,11 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 - Upload multiple files.
 - Chunks hash cache in client.
 - Delete chunks after uploaded in server.
+- Hash validation in merging.
 
 ## TODO
 
-- Hash validation in merging.
 - hash validation in chunk.
-- Consider upload a same file in same time in deferent endpoint.
 - Concurrency number should be determined by the performance of server and browser.
 
 ## Record of problems

@@ -1,49 +1,33 @@
-import { PromisePool } from "@/upload/utils/promise-pool";
+import { ERRORS } from "@/upload/constants/errors";
+import { IPromisePoolOptions, PromisePool } from "@/upload/utils/promise-pool";
+import { nameOf } from "../../../test-utils";
 
 const sleep = (ms: number) =>
   new Promise<number>((resolve) => setTimeout(() => resolve(ms), ms));
 
 describe("PromisePool", () => {
-  describe("options", async () => {
-    test("onProgress", async () => {
-      const data = [1, 2, 3, 4, 5];
-      const onProgress = vi.fn(() => {});
-      const pool = new PromisePool({
-        concurrency: 2,
-        data,
-        process: async (data) => {
-          await sleep(100);
-          return data;
-        },
-      });
-
-      pool.progress$.subscribe(onProgress);
-
-      await pool.start();
-
-      expect(onProgress).toHaveBeenCalledTimes(6);
-      expect(onProgress).toHaveBeenNthCalledWith(1, 0);
-      expect(onProgress).toHaveBeenLastCalledWith(100);
+  test(nameOf<PromisePool>("progress$"), async () => {
+    const data = [1, 2, 3, 4, 5];
+    const onProgress = vi.fn(() => {});
+    const pool = new PromisePool({
+      concurrency: 2,
+      data,
+      process: async (data) => {
+        await sleep(100);
+        return data;
+      },
     });
 
-    test("concurrency", async () => {
-      const data = [1, 2, 3, 4, 5];
-      expect(
-        vi.fn(() => {
-          new PromisePool({
-            concurrency: -2,
-            data,
-            process: async (data) => {
-              await sleep(100);
-              return data;
-            },
-          });
-        })
-      ).toThrowError("concurrency should be a positive integer");
-    });
+    pool.progress$.subscribe(onProgress);
+
+    await pool.start();
+
+    expect(onProgress).toHaveBeenCalledTimes(6);
+    expect(onProgress).toHaveBeenNthCalledWith(1, 0);
+    expect(onProgress).toHaveBeenLastCalledWith(100);
   });
 
-  describe("concurrency", () => {
+  describe(nameOf<IPromisePoolOptions>("concurrency"), () => {
     async function doConcurrencyTest(
       concurrency: number,
       timeouts: number[],
@@ -68,7 +52,7 @@ describe("PromisePool", () => {
       );
     }
 
-    test("concurrency: 1", async () => {
+    test("1", async () => {
       const concurrency = 1;
       const timeouts = [40, 10, 20, 30, 10];
       const expectedDuration = timeouts.reduce(
@@ -79,14 +63,14 @@ describe("PromisePool", () => {
       await doConcurrencyTest(concurrency, timeouts, expectedDuration);
     });
 
-    test("concurrency: 2", async () => {
+    test("2", async () => {
       const concurrency = 2;
       const timeouts = [400, 100, 200, 300, 100];
       const expectedDuration = 600;
       await doConcurrencyTest(concurrency, timeouts, expectedDuration);
     });
 
-    test("concurrency: ensures", async () => {
+    test("ensures", async () => {
       const concurrency = 2;
       const timeouts = [100, 20, 30, 10, 10, 10, 50];
       const expectedDuration = 130;
@@ -102,6 +86,22 @@ describe("PromisePool", () => {
   });
 
   describe("errors", () => {
+    test(nameOf<IPromisePoolOptions>("concurrency"), async () => {
+      const data = [1, 2, 3, 4, 5];
+      expect(
+        vi.fn(() => {
+          new PromisePool({
+            concurrency: -2,
+            data,
+            process: async (data) => {
+              await sleep(100);
+              return data;
+            },
+          });
+        })
+      ).toThrowError(ERRORS.invalidConcurrencyType);
+    });
+
     test("returns errors", async () => {
       const ids = [1, 2, 3, 4, 5];
       const results = await new PromisePool({
@@ -164,7 +164,7 @@ describe("PromisePool", () => {
     });
   });
 
-  describe("start", () => {
+  describe(nameOf<PromisePool>("start"), () => {
     test("start called multiple times should return the same promise", async () => {
       const pool = new PromisePool({
         concurrency: 2,
@@ -177,7 +177,7 @@ describe("PromisePool", () => {
     });
   });
 
-  describe("stop", () => {
+  describe(nameOf<PromisePool>("stop"), () => {
     test("base", async () => {
       const data = [1, 2];
       const pool = new PromisePool({
@@ -207,7 +207,7 @@ describe("PromisePool", () => {
     });
   });
 
-  describe("state$", () => {
+  describe(nameOf<PromisePool>("state$"), () => {
     test("base", async () => {
       const data = [1, 2];
       const pool = new PromisePool({
@@ -246,7 +246,7 @@ describe("PromisePool", () => {
     });
   });
 
-  test("error$", async () => {
+  test(nameOf<PromisePool>("error$"), async () => {
     const data = [1, 2];
     const expectedError = new Error();
     const pool = new PromisePool({

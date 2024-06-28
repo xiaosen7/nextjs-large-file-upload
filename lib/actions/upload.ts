@@ -1,6 +1,6 @@
 import { IUploadChunkData, IUploadClientActions } from "@/upload/models/client";
 import { UploadSlicer } from "@/upload/models/slicer";
-import { UploadStorage } from "@/upload/models/storage";
+import { UploadStorage } from "@/upload/models/storages/base";
 import { deconstructFormData } from "@/upload/utils/type";
 
 const globalThis = global as unknown as { storage: UploadStorage };

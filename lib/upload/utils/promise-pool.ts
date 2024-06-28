@@ -1,5 +1,6 @@
 import { once } from "lodash-es";
 import { BehaviorSubject, Subject } from "rxjs";
+import { ERRORS } from "../constants/errors";
 import { isPositiveInter } from "./type";
 
 enum EPromisePoolState {
@@ -8,7 +9,7 @@ enum EPromisePoolState {
   Complete = "Complete",
 }
 
-interface IPromisePoolOptions<TData, TValue> {
+export interface IPromisePoolOptions<TData = any, TValue = any> {
   concurrency: number;
   data: TData[];
   process: (data: TData, index: number) => Promise<TValue>;
@@ -50,7 +51,7 @@ export class PromisePool<TData = any, TValue = any> {
     const { concurrency } = options;
 
     if (!isPositiveInter(concurrency)) {
-      throw new Error("concurrency should be a positive integer");
+      throw ERRORS.invalidConcurrencyType;
     }
   }
 
