@@ -1,4 +1,4 @@
-import { ERRORS } from "@/upload/constants/errors";
+import { ERRORS } from "@/shared/constants/errors";
 import { IPromisePoolOptions, PromisePool } from "@/upload/utils/promise-pool";
 import { nameOf } from "../../../test-utils";
 
@@ -99,7 +99,7 @@ describe("PromisePool", () => {
             },
           });
         })
-      ).toThrowError(ERRORS.invalidConcurrencyType);
+      ).toThrowError(ERRORS.upload.invalidConcurrencyType);
     });
 
     test("returns errors", async () => {

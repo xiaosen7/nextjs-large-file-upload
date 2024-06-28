@@ -20,7 +20,7 @@ export function createSlicer() {
   };
 }
 
-import { ERRORS } from "@/upload/constants/errors";
+import { ERRORS } from "@/shared/constants/errors";
 import { MemoryReadableStream as CustomReadableStream } from "@/upload/models/storages/memory";
 import { nameOf } from "../../../test-utils";
 
@@ -120,7 +120,7 @@ describe(UploadSlicer.name, () => {
         e = error;
       }
 
-      expect(e).toBe(ERRORS.hashValidationFailed);
+      expect(e).toBe(ERRORS.upload.hashValidationFailed);
 
       expect(await storage.exists(slicer.getChunkPath(0))).toBeFalsy();
     });

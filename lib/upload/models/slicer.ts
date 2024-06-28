@@ -1,7 +1,7 @@
+import { ERRORS } from "@/shared/constants/errors";
 import MultiStream from "multistream";
 import { Readable } from "stream";
 import { DEFAULTS } from "../constants/defaults";
-import { ERRORS } from "../constants/errors";
 import { validateChunkIndices } from "../utils/chunks";
 import { pump } from "../utils/pump";
 import { IHashCalculator } from "./hash-calculators/base";
@@ -83,7 +83,7 @@ export class UploadSlicer {
     });
 
     if (hash !== this.hash) {
-      throw ERRORS.hashValidationFailed;
+      throw ERRORS.upload.hashValidationFailed;
     }
   }
 

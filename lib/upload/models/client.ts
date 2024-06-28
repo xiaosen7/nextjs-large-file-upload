@@ -1,3 +1,4 @@
+import { ERRORS } from "@/shared/constants/errors";
 import { once } from "lodash-es";
 import memoize from "p-memoize";
 import {
@@ -14,7 +15,6 @@ import {
   tap,
 } from "rxjs";
 import { DEFAULTS } from "../constants/defaults";
-import { ERRORS } from "../constants/errors";
 import { PromisePool } from "../utils/promise-pool";
 import { createFormData } from "../utils/type";
 import { calculateChunksHashByWorker } from "../workers/calculate-hash";
@@ -140,7 +140,7 @@ export class UploadClient {
 
   #run(autoUpload = false) {
     if (this.#destroyed) {
-      this.#handleError(ERRORS.clientHasDestroyed);
+      this.#handleError(ERRORS.upload.clientHasDestroyed);
     }
 
     this.#subscription.unsubscribe();
@@ -155,7 +155,7 @@ export class UploadClient {
             if (exists) {
               // Directly set the state
               this.state$.next(EUploadClientState.FastUploaded);
-
+              this.progress$.next(100);
               return NEVER; // Return a completed observable to end the chain
             } else {
               // Transition to createPool using switchMap

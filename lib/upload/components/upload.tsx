@@ -4,6 +4,7 @@ import { Loading } from "@/shared/components/loading";
 import { Input } from "@/shared/components/ui/input";
 import { Progress } from "@/shared/components/ui/progress";
 import { mp } from "@/shared/utils/jsx";
+import { unwrapActions } from "@/shared/utils/unwrap-action";
 import {
   CheckIcon,
   Cross2Icon,
@@ -22,14 +23,11 @@ import { DEFAULTS } from "../constants/defaults";
 import { IUploadClientActions, UploadClient } from "../models/client";
 import { IUploadSetting, UploadSetting } from "./setting";
 
-interface IFile extends File {
-  id: string;
-}
-
 const AUTO_UPLOAD = true;
 
 export interface IUploadProps {
-  actions: IUploadClientActions;
+  // @ts-ignore
+  actions: IWrapServerActions<IUploadClientActions>;
 }
 
 export const Upload: React.FC<IUploadProps> = ({ actions }) => {
@@ -53,7 +51,7 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
       const id = uniqueId();
       const client = new UploadClient(
         file,
-        actions,
+        unwrapActions(actions),
         setting?.concurrency,
         setting?.chunkSize
       );
@@ -193,7 +191,7 @@ const UploadStateIcon: React.FC<{
 
     case UploadClient.EState.UploadSuccessfully:
     case UploadClient.EState.FastUploaded:
-      return <CheckIcon />;
+      return <CheckIcon color="green"/>;
 
     case UploadClient.EState.Error:
       return <Cross2Icon color="red" />;

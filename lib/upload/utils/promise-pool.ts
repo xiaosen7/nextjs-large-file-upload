@@ -1,6 +1,6 @@
+import { ERRORS } from "@/shared/constants/errors";
 import { once } from "lodash-es";
 import { BehaviorSubject, Subject } from "rxjs";
-import { ERRORS } from "../constants/errors";
 import { isPositiveInter } from "./type";
 
 enum EPromisePoolState {
@@ -51,7 +51,7 @@ export class PromisePool<TData = any, TValue = any> {
     const { concurrency } = options;
 
     if (!isPositiveInter(concurrency)) {
-      throw ERRORS.invalidConcurrencyType;
+      throw ERRORS.upload.invalidConcurrencyType;
     }
   }
 
