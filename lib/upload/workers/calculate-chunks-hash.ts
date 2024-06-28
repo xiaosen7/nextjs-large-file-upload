@@ -19,7 +19,6 @@ self.onmessage = async (e) => {
       hash,
     });
   } catch (error) {
-    console.log("worker", { error });
     self.postMessage({
       error,
     });

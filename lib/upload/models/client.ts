@@ -1,4 +1,5 @@
 import { once } from "lodash-es";
+import memoize from "p-memoize";
 import {
   BehaviorSubject,
   NEVER,
@@ -73,7 +74,7 @@ export class UploadClient {
     return chunks;
   }
 
-  #calcHash = async () => {
+  #calcHash = memoize(async () => {
     const chunks = this.#split();
     this.state$.next(EUploadClientState.CalculatingHash);
     const hash = await calculateChunksHashByWorker(chunks, (progress) => {
@@ -84,7 +85,7 @@ export class UploadClient {
       hash,
       chunks,
     };
-  };
+  });
 
   async #checkExists() {
     const { chunks, hash } = await this.#calcHash();
@@ -194,7 +195,6 @@ export class UploadClient {
   }
 
   stopPool() {
-    // TODO fix
     if (this.#pool) {
       this.#pool.stop();
       this.state$.next(EUploadClientState.UploadStopped);

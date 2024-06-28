@@ -39,16 +39,16 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 
 - Upload chunks instead of upload the whole file.
 - Upload by stream.
-- If file has been uploaded, do not need upload again.
-- Hash validate in merging.
+- If file has been uploaded, do not need to upload again.
 - Restore the progress.
 - Stop and continue the progress.
 - Upload multiple files.
+- Chunks hash cache in client.
 
 ## TODO
 
-- Hash check in merging.
-- hash check in chunk.
+- Hash validation in merging.
+- hash validation in chunk.
 - Consider upload a same file in same time in deferent endpoint.
 - Concurrency number should be determined by the performance of server and browser.
 

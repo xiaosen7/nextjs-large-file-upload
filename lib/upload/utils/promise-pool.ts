@@ -188,7 +188,6 @@ export class PromisePool<TData = any, TValue = any> {
   //#endregion
 
   destroy() {
-    console.log("pool destroyed");
     this.#destroyed = true;
     this.#stopPromise = null;
     this.state$.complete();
