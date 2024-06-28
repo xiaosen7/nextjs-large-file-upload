@@ -1,4 +1,4 @@
-import { get, set } from "lodash-es";
+import { get, keys, set } from "lodash-es";
 import path, { isAbsolute } from "path";
 import { Readable, Writable } from "stream";
 import { UploadStorage } from "./base";
@@ -9,7 +9,7 @@ const splitPath = (path: string) => {
   return path.split("/").filter(Boolean);
 };
 
-class MemoryWritableStream extends Writable {
+export class MemoryWritableStream extends Writable {
   constructor(private path: string) {
     super();
   }
@@ -17,8 +17,7 @@ class MemoryWritableStream extends Writable {
   _write(chunk: Buffer, encoding: string, callback: () => void) {
     const str = chunk.toString();
 
-    const paths = splitPath(this.path);
-    set(data, paths, str.length > 10 ? "_" : str);
+    set(data, splitPath(this.path), str.length > 10 ? "_" : str);
     callback();
   }
 }
@@ -46,7 +45,10 @@ export class MemoryReadableStream extends Readable {
  */
 export class MemoryStorage extends UploadStorage {
   static clear() {
-    data = {};
+    keys(data).forEach((key) => {
+      // @ts-ignore
+      delete data[key];
+    });
   }
 
   static getData() {
@@ -88,7 +90,7 @@ export class MemoryStorage extends UploadStorage {
   }
 
   async rmdir(path: string): Promise<void> {
-    set(data, splitPath(path), {});
+    set(data, splitPath(path), undefined);
   }
 
   async createReadStream(path: string): Promise<Readable> {

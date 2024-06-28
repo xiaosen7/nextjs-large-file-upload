@@ -88,16 +88,20 @@ export class UploadSlicer {
   }
 
   async merge() {
-    const chunkIndices = await this.#getSortedExistedChunkIndices();
+    try {
+      const chunkIndices = await this.#getSortedExistedChunkIndices();
 
-    validateChunkIndices(chunkIndices);
-    await this.#validateHash(chunkIndices);
+      validateChunkIndices(chunkIndices);
+      await this.#validateHash(chunkIndices);
 
-    const input = await this.#createMultiChunksStream(chunkIndices);
-    const output = await this.storage.createWriteStream(this.getFilePath());
+      const input = await this.#createMultiChunksStream(chunkIndices);
+      const output = await this.storage.createWriteStream(this.getFilePath());
 
-    await pump(input, output);
-
-    await this.storage.rmdir(this.#chunksDir);
+      await pump(input, output);
+    } catch (error) {
+      throw error;
+    } finally {
+      await this.storage.rmdir(this.#chunksDir);
+    }
   }
 }

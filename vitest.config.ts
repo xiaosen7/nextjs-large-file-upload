@@ -1,6 +1,6 @@
 import react from "@vitejs/plugin-react";
 import tsConfigPaths from "vite-plugin-tsconfig-paths";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   plugins: [react(), tsConfigPaths()],
@@ -8,6 +8,6 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     include: ["tests/**/*.ts?(x)"],
-    exclude: ["test-utils.ts"],
+    exclude: [...configDefaults.exclude, "**/test-utils.ts"],
   },
 });

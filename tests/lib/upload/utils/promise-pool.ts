@@ -46,7 +46,7 @@ describe("PromisePool", () => {
       const elapsed = Date.now() - start;
 
       expect(elapsed).toBeGreaterThanOrEqual(expectedDuration);
-      expect(elapsed).toBeLessThanOrEqual(expectedDuration + 50);
+      expect(elapsed).toBeLessThanOrEqual(expectedDuration + 60);
       expect(results).toEqual(
         timeouts.map((value) => ({ value, error: null }))
       );

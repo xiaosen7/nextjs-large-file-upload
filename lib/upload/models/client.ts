@@ -124,8 +124,12 @@ export class UploadClient {
       },
     });
 
-    this.#subscription.add(this.#pool!.error$.subscribe(this.#handleError));
-    this.#subscription.add(this.#pool!.progress$.subscribe(this.progress$));
+    this.#subscription.add(
+      this.#pool!.error$.subscribe((error) => this.#handleError(error))
+    );
+    this.#subscription.add(
+      this.#pool!.progress$.subscribe((v) => this.progress$.next(v))
+    );
   }
 
   #handleError = (error: unknown) => {
@@ -151,7 +155,7 @@ export class UploadClient {
             if (exists) {
               // Directly set the state
               this.state$.next(EUploadClientState.FastUploaded);
-              this.progress$.next(100);
+
               return NEVER; // Return a completed observable to end the chain
             } else {
               // Transition to createPool using switchMap
@@ -186,7 +190,11 @@ export class UploadClient {
 
   start = once(this.#run);
 
-  restart = this.#run;
+  restart = (autoUpload?: boolean) => {
+    this.progress$.next(0);
+    this.state$.next(EUploadClientState.Default);
+    this.#run(autoUpload);
+  };
 
   startPool() {
     if (this.#pool) {

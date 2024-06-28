@@ -46,6 +46,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 - Chunks hash cache in client.
 - Delete chunks after uploaded in server.
 - Hash validation in merging.
+- Delete chunks when merge failed.
 
 ## TODO
 

@@ -105,7 +105,7 @@ describe(UploadSlicer.name, () => {
       expect(await storage.exists(slicer.getChunkPath(0))).toBeFalsy();
     });
 
-    test("should throw error if validate hash failed", async () => {
+    test("when validate hash failed", async () => {
       const slicer = new UploadSlicer("hash1", storage, () => ({
         append: () => {},
         end: () => "hash2",
@@ -113,9 +113,16 @@ describe(UploadSlicer.name, () => {
 
       await slicer.writeChunk(0, new CustomReadableStream("data"));
 
-      expect(vi.fn(() => slicer.merge())).rejects.toBe(
-        ERRORS.hashValidationFailed
-      );
+      let e;
+      try {
+        await slicer.merge();
+      } catch (error) {
+        e = error;
+      }
+
+      expect(e).toBe(ERRORS.hashValidationFailed);
+
+      expect(await storage.exists(slicer.getChunkPath(0))).toBeFalsy();
     });
   });
 });

@@ -220,4 +220,28 @@ describe(UploadClient.name, () => {
     await delay(50);
     expect(client.state$.value).toBe(UploadClient.EState.UploadSuccessfully);
   });
+
+  test("restart", async () => {
+    const { client, waitState, expectStateSequence } = createClientTestUtils({
+      merge: async () => {
+        throw new Error();
+      },
+    });
+
+    client.start(true);
+    await waitState(UploadClient.EState.Error);
+
+    expectStateSequence([
+      UploadClient.EState.Default,
+      UploadClient.EState.CalculatingHash,
+      UploadClient.EState.CheckingFileExists,
+      UploadClient.EState.Uploading,
+      UploadClient.EState.Merging,
+      UploadClient.EState.Error,
+    ]);
+
+    client.restart(true);
+    expect(client.progress$.value).toBe(0);
+    expect(client.state$.value).toBe(EUploadClientState.Default);
+  });
 });
