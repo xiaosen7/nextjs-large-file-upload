@@ -3,7 +3,7 @@ import { once } from "lodash-es";
 import memoize from "p-memoize";
 import {
   BehaviorSubject,
-  NEVER,
+  EMPTY,
   Subject,
   Subscription,
   concatAll,
@@ -12,6 +12,7 @@ import {
   from,
   map,
   switchMap,
+  take,
   tap,
 } from "rxjs";
 import { DEFAULTS } from "../constants/defaults";
@@ -157,7 +158,7 @@ export class UploadClient {
               // Directly set the state
               this.state$.next(EUploadClientState.FastUploaded);
               this.progress$.next(100);
-              return NEVER; // Return a completed observable to end the chain
+              return EMPTY;
             } else {
               // Transition to createPool using switchMap
               return from(this.#createPool(hash, chunks)).pipe(
@@ -181,7 +182,8 @@ export class UploadClient {
               );
             }
           }),
-          tap(() => this.state$.next(EUploadClientState.UploadSuccessfully))
+          tap(() => this.state$.next(EUploadClientState.UploadSuccessfully)),
+          take(1)
         )
         .subscribe({
           error: this.#handleError,
