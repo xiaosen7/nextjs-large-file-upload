@@ -191,7 +191,7 @@ const UploadStateIcon: React.FC<{
 
     case UploadClient.EState.UploadSuccessfully:
     case UploadClient.EState.FastUploaded:
-      return <CheckIcon color="green"/>;
+      return <CheckIcon color="green" />;
 
     case UploadClient.EState.Error:
       return <Cross2Icon color="red" />;

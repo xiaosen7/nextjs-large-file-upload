@@ -1,62 +1,126 @@
 import { ERRORS } from "@/shared/constants/errors";
-import { once } from "lodash-es";
-import { BehaviorSubject, Subject } from "rxjs";
-import { isPositiveInter } from "./type";
+import {
+  BehaviorSubject,
+  EMPTY,
+  Subject,
+  Subscription,
+  from,
+  mergeMap,
+  range,
+} from "rxjs";
 
-enum EPromisePoolState {
-  Stopped = "Stopped",
-  Running = "Running",
-  Complete = "Complete",
-}
+type ITask = () => Promise<void>;
 
-export interface IPromisePoolOptions<TData = any, TValue = any> {
+export interface IPromisePoolOptions {
   concurrency: number;
-  data: TData[];
-  process: (data: TData, index: number) => Promise<TValue>;
 }
 
-interface IPromisePoolResult<TValue> {
-  value: TValue | null;
-  error: any;
-}
-/**
- * A promise pool with concurrency control.
- */
-export class PromisePool<TData = any, TValue = any> {
-  static EState = EPromisePoolState;
-
-  state$ = new BehaviorSubject<EPromisePoolState>(EPromisePoolState.Stopped);
+export class PromisePool {
   progress$ = new BehaviorSubject<number>(0);
-  error$ = new Subject();
+  error$ = new Subject<{
+    index: number;
+    error: unknown;
+  }>();
+  finish$ = new Subject<{ index: number; error?: unknown }>();
+  finishAll$ = new Subject<void>();
 
-  #destroyed = false;
-  #results: Array<IPromisePoolResult<TValue>> = [];
-  #activeDataIndices = new Set<number>();
-  #isPoolFull = false;
+  #stop$ = new Subject<void>();
+
+  #started = false;
   #stopPromise: Promise<void> | null = null;
-  #resultPromise:
-    | Promise<
-        Array<{
-          value: TValue | null;
-          error: any;
-        }>
-      >
-    | undefined;
+  #total = 0;
+  #tasks: ITask[] = [];
+  #activatedIndices = new Set<number>();
+  #finishedIndices = new Set<number>();
 
-  constructor(private options: IPromisePoolOptions<TData, TValue>) {
-    this.#checkOptions(options);
-  }
+  #subscription = new Subscription();
 
-  #checkOptions(options: IPromisePoolOptions<TData, TValue>) {
-    const { concurrency } = options;
-
-    if (!isPositiveInter(concurrency)) {
+  constructor(private options: IPromisePoolOptions) {
+    if (options.concurrency <= 0) {
       throw ERRORS.upload.invalidConcurrencyType;
     }
   }
 
-  async stop() {
-    this.state$.next(EPromisePoolState.Stopped);
+  append(task: ITask) {
+    this.#total += 1;
+    this.#tasks.push(task);
+  }
+
+  start() {
+    if (this.#stopPromise) {
+      this.continue();
+      return;
+    }
+
+    if (this.#started) {
+      return;
+    }
+
+    this.#started = true;
+
+    const { concurrency } = this.options;
+    // console.log(`start total ${this.#tasks.length} tasks`);
+    this.#subscription.add(
+      range(0, this.#tasks.length)
+        .pipe(
+          mergeMap((index) => {
+            return from(Promise.resolve(this.#stopPromise)).pipe(
+              mergeMap(() => {
+                if (this.#activatedIndices.has(index)) {
+                  // console.log(`skip ${index}`);
+                  return EMPTY;
+                }
+
+                // console.log(`start ${index}`);
+
+                this.progress$.next(((index + 1) / this.#total) * 100);
+
+                this.#activatedIndices.add(index);
+
+                return this.#tasks
+                  [index]()
+                  .then(() => ({ index, error: undefined }))
+                  .catch((error) => {
+                    return {
+                      index,
+                      error,
+                    };
+                  });
+              })
+            );
+          }, concurrency)
+        )
+        .subscribe({
+          next: ({ index, error }) => {
+            this.#finishedIndices.add(index);
+
+            if (error) {
+              this.error$.next({
+                index,
+                error,
+              });
+            }
+
+            this.finish$.next({ index, error });
+
+            // console.log(`complete ${index}`);
+          },
+          complete: () => {
+            // console.log("complete");
+            if (this.#finishedIndices.size === this.#total) {
+              // console.log("complete all");
+              this.finishAll$.next();
+            }
+          },
+        })
+    );
+  }
+
+  private continue() {
+    void 0;
+  }
+
+  stop() {
     if (this.#stopPromise) {
       return;
     }
@@ -69,130 +133,13 @@ export class PromisePool<TData = any, TValue = any> {
     });
   }
 
-  private continue() {
-    void 0;
-  }
-
-  #loop = once(async () => {
-    const { concurrency, data, process } = this.options;
-    const promises = data.map((data, index) => () => process(data, index));
-
-    const pool: Set<
-      Promise<{
-        promiseIndex: number;
-        remove: () => void;
-      }>
-    > = new Set();
-
-    let index = 0;
-    let finished = 0;
-    const total = promises.length;
-    while (index < total) {
-      if (this.#destroyed) {
-        return this.#results;
-      }
-
-      if (this.#stopPromise) {
-        await this.#stopPromise;
-      }
-
-      const promiseIndex = index;
-      this.#activeDataIndices.add(promiseIndex);
-
-      const poolItem = Promise.resolve()
-        .then(() => promises[promiseIndex]())
-        .then((result) => {
-          this.#results[promiseIndex] = {
-            value: result,
-            error: null,
-          };
-        })
-        .catch((error) => {
-          this.error$.next(error);
-          this.#results[promiseIndex] = {
-            value: null,
-            error,
-          };
-        })
-        .then(() => {
-          finished++;
-
-          if (finished === total) {
-            this.progress$.complete();
-            this.state$.next(EPromisePoolState.Complete);
-          }
-
-          return {
-            promiseIndex,
-            remove: () => pool.delete(poolItem),
-          };
-        });
-      pool.add(poolItem);
-
-      const progress = ((promiseIndex + 1) / promises.length) * 100;
-      this.progress$.next(progress);
-
-      if (this.#activeDataIndices.size === concurrency) {
-        this.#isPoolFull = true;
-        await Promise.race([...pool]).then(({ promiseIndex, remove }) => {
-          this.#isPoolFull = false;
-          this.#activeDataIndices.delete(promiseIndex);
-          remove();
-        });
-      }
-
-      index++;
-    }
-
-    await Promise.all(pool); // wait rest promises
-    return this.#results;
-  });
-
-  start() {
-    this.state$.next(EPromisePoolState.Running);
-
-    if (this.#resultPromise) {
-      this.continue();
-      return this.#resultPromise;
-    }
-
-    this.#resultPromise = this.#loop();
-
-    return this.#resultPromise;
-  }
-
-  isPoolFull() {
-    return this.#isPoolFull;
-  }
-
-  getActiveDataIndices() {
-    return this.#activeDataIndices;
-  }
-
-  getResults() {
-    return this.#results;
-  }
-
-  //#region state
-  isStopped() {
-    return this.state$.value === EPromisePoolState.Stopped;
-  }
-
-  isRunning() {
-    return this.state$.value === EPromisePoolState.Running;
-  }
-
-  isComplete() {
-    return this.state$.value === EPromisePoolState.Complete;
-  }
-
-  //#endregion
-
   destroy() {
-    this.#destroyed = true;
-    this.#stopPromise = null;
-    this.state$.complete();
+    this.#subscription.unsubscribe();
     this.progress$.complete();
     this.error$.complete();
+    this.#stop$.complete();
+    this.finish$.complete();
+    this.finishAll$.complete();
+    this.#tasks = [];
   }
 }

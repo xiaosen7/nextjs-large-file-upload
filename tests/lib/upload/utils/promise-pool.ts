@@ -1,30 +1,66 @@
 import { ERRORS } from "@/shared/constants/errors";
 import { IPromisePoolOptions, PromisePool } from "@/upload/utils/promise-pool";
+import { firstValueFrom } from "rxjs";
 import { nameOf } from "../../../test-utils";
 
 const sleep = (ms: number) =>
-  new Promise<number>((resolve) => setTimeout(() => resolve(ms), ms));
+  new Promise<void>((resolve) => setTimeout(() => resolve(), ms));
 
-describe("PromisePool", () => {
+describe("PromisePool2", () => {
+  describe("options validation", () => {
+    test("concurrency", async () => {
+      expect(
+        vi.fn(() => {
+          new PromisePool({ concurrency: 0 });
+        })
+      ).toThrowError(ERRORS.upload.invalidConcurrencyType);
+    });
+  });
+
   test(nameOf<PromisePool>("progress$"), async () => {
     const data = [1, 2, 3, 4, 5];
-    const onProgress = vi.fn(() => {});
-    const pool = new PromisePool({
-      concurrency: 2,
-      data,
-      process: async (data) => {
-        await sleep(100);
-        return data;
-      },
-    });
+    const onProgress = vi.fn();
 
+    const pool = new PromisePool({ concurrency: 2 });
     pool.progress$.subscribe(onProgress);
+    data.forEach(() => pool.append(async () => {}));
 
-    await pool.start();
+    pool.start();
+    await firstValueFrom(pool.finishAll$);
 
-    expect(onProgress).toHaveBeenCalledTimes(6);
+    expect(onProgress).toHaveBeenCalledTimes(data.length + 1);
     expect(onProgress).toHaveBeenNthCalledWith(1, 0);
-    expect(onProgress).toHaveBeenLastCalledWith(100);
+    data.forEach((_, index) => {
+      const nth = index + 2;
+      const arg = ((index + 1) / data.length) * 100;
+      expect(onProgress).toHaveBeenNthCalledWith(nth, arg);
+    });
+  });
+
+  describe(nameOf<PromisePool>("error$"), () => {
+    test("should emit error", async () => {
+      const ids = [1, 2, 3, 4, 5];
+      const error = new Error("error");
+      const pool = new PromisePool({ concurrency: 2 });
+
+      ids.forEach((id) => {
+        pool.append(async () => {
+          if (id === 3) {
+            throw error;
+          }
+        });
+      });
+
+      pool.start();
+
+      const onError = vi.fn();
+      pool.error$.subscribe(onError);
+
+      await firstValueFrom(pool.finishAll$);
+
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledWith({ index: 2, error });
+    });
   });
 
   describe(nameOf<IPromisePoolOptions>("concurrency"), () => {
@@ -33,23 +69,19 @@ describe("PromisePool", () => {
       timeouts: number[],
       expectedDuration: number
     ) {
-      const start = Date.now();
-      const results = await new PromisePool({
-        concurrency,
-        data: timeouts,
-        process: async (timeout) => {
-          await sleep(timeout);
-          return timeout;
-        },
-      }).start();
+      const startTime = Date.now();
+      const pool = new PromisePool({ concurrency });
+      timeouts.forEach((timeout) => {
+        pool.append(() => sleep(timeout));
+      });
 
-      const elapsed = Date.now() - start;
+      pool.start();
+      await firstValueFrom(pool.finishAll$);
+
+      const elapsed = Date.now() - startTime;
 
       expect(elapsed).toBeGreaterThanOrEqual(expectedDuration);
       expect(elapsed).toBeLessThanOrEqual(expectedDuration + 60);
-      expect(results).toEqual(
-        timeouts.map((value) => ({ value, error: null }))
-      );
     }
 
     test("1", async () => {
@@ -85,185 +117,37 @@ describe("PromisePool", () => {
     });
   });
 
-  describe("errors", () => {
-    test(nameOf<IPromisePoolOptions>("concurrency"), async () => {
-      const data = [1, 2, 3, 4, 5];
-      expect(
-        vi.fn(() => {
-          new PromisePool({
-            concurrency: -2,
-            data,
-            process: async (data) => {
-              await sleep(100);
-              return data;
-            },
-          });
-        })
-      ).toThrowError(ERRORS.upload.invalidConcurrencyType);
-    });
-
-    test("returns errors", async () => {
-      const ids = [1, 2, 3, 4, 5];
-      const results = await new PromisePool({
-        concurrency: 2,
-        data: ids,
-        process: async (id) => {
-          if (id === 3) {
-            throw new Error("3");
-          }
-          return id;
-        },
-      }).start();
-
-      expect(results).toEqual(
-        ids.map((id) => ({
-          value: id === 3 ? null : id,
-          error: id === 3 ? new Error("3") : null,
-        }))
-      );
-    });
-
-    test("stores the original error", async () => {
-      class CustomError extends Error {
-        constructor(message: any) {
-          super(message);
-        }
-      }
-
-      const results = await new PromisePool({
-        concurrency: 2,
-        data: [1],
-        process: async () => {
-          throw new CustomError("foo");
-        },
-      }).start();
-
-      expect(results[0].error).toBeInstanceOf(CustomError);
-    });
-
-    test("keeps processing with when errors occur", async () => {
-      const ids = Array.from({ length: 10 }, (_, i) => i);
-
-      const results = await new PromisePool({
-        concurrency: 2,
-        data: ids,
-        process: async (id) => {
-          if (id === 1) {
-            throw new Error("I can’t keep the first item");
-          }
-          return id;
-        },
-      }).start();
-
-      expect(results).toEqual(
-        results.map(({ error, value }, id) => ({
-          error: id === 1 ? new Error("I can’t keep the first item") : error,
-          value: id === 1 ? null : value,
-        }))
-      );
-    });
-  });
-
-  describe(nameOf<PromisePool>("start"), () => {
-    test("start called multiple times should return the same promise", async () => {
-      const pool = new PromisePool({
-        concurrency: 2,
-        data: [1, 2],
-        process: async (x) => x,
-      });
-      const p1 = pool.start();
-      const p2 = pool.start();
-      expect(p1).toBe(p2);
-    });
-  });
-
   describe(nameOf<PromisePool>("stop"), () => {
-    test("base", async () => {
-      const data = [1, 2];
+    test("stop and start", async () => {
+      const timeouts = [100, 100, 100, 100, 100];
+
       const pool = new PromisePool({
         concurrency: 1,
-        data,
-        process: async (x) => {
-          if (x === 1) {
-            pool.stop();
-          }
-          return x;
-        },
       });
 
-      const p = pool.start();
+      timeouts.forEach((ms) =>
+        pool.append(async () => {
+          await sleep(ms);
+        })
+      );
 
-      await sleep(100);
-
-      // 1 has been executed over
-      expect(Array.from(pool.getActiveDataIndices())).toEqual([]);
-      expect(pool.isStopped()).toBeTruthy();
-
-      pool.start();
-      expect(pool.isRunning()).toBeTruthy();
-      const results = await p;
-
-      expect(results).toEqual(data.map((value) => ({ value, error: null })));
-    });
-  });
-
-  describe(nameOf<PromisePool>("state$"), () => {
-    test("base", async () => {
-      const data = [1, 2];
-      const pool = new PromisePool({
-        concurrency: 1,
-        data,
-        process: async (x) => {
-          if (x === 1) {
-            pool.stop();
-          }
-          return x;
-        },
-      });
-      expect(pool.isStopped()).toBeTruthy();
+      const finishObserver = vi.fn();
+      const progressObserver = vi.fn();
+      pool.finish$.subscribe(finishObserver);
+      pool.progress$.subscribe(progressObserver);
 
       pool.start();
-      expect(pool.isRunning()).toBeTruthy();
 
-      await sleep(50);
+      await sleep(350);
 
-      expect(pool.isStopped()).toBeTruthy();
+      pool.stop();
 
-      const p = pool.start();
-      expect(pool.isRunning()).toBeTruthy();
-      await p;
-      expect(pool.isComplete()).toBeTruthy();
-      expect(pool.getResults()).toEqual([
-        {
-          error: null,
-          value: 1,
-        },
-        {
-          error: null,
-          value: 2,
-        },
-      ]);
+      expect(finishObserver).toBeCalledTimes(3);
+      expect(progressObserver).toBeCalledTimes(5);
+
+      await sleep(350);
+      expect(finishObserver).toBeCalledTimes(4);
+      expect(progressObserver).toBeCalledTimes(5);
     });
-  });
-
-  test(nameOf<PromisePool>("error$"), async () => {
-    const data = [1, 2];
-    const expectedError = new Error();
-    const pool = new PromisePool({
-      concurrency: 1,
-      data,
-      process: async (x) => {
-        if (x === 1) {
-          throw expectedError;
-        }
-        return x;
-      },
-    });
-
-    const onError = vi.fn();
-    pool.error$.subscribe(onError);
-    await pool.start();
-    expect(onError).toHaveBeenCalledTimes(1);
-    expect(onError).toHaveBeenCalledWith(expectedError);
   });
 });

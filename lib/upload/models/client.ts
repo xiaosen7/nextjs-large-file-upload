@@ -8,7 +8,6 @@ import {
   Subscription,
   concatAll,
   concatMap,
-  filter,
   from,
   map,
   switchMap,
@@ -54,7 +53,7 @@ export class UploadClient {
   progress$ = new BehaviorSubject<number>(0);
   error$ = new Subject();
 
-  #pool: PromisePool<Blob, void> | null = null;
+  #pool: PromisePool | null = null;
   #subscription = new Subscription();
   #destroyed = false;
 
@@ -104,14 +103,17 @@ export class UploadClient {
 
   async #createPool(hash: string, chunks: Blob[]) {
     this.#pool?.destroy();
+
     const lastExistedChunkIndex = await this.actions.getLastExistedChunkIndex(
       hash
     );
 
     this.#pool = new PromisePool({
-      data: chunks,
       concurrency: this.concurrency,
-      process: async (chunk, index) => {
+    });
+
+    chunks.forEach((chunk, index) => {
+      this.#pool!.append(async () => {
         if (lastExistedChunkIndex >= index) {
           return;
         }
@@ -122,11 +124,11 @@ export class UploadClient {
             createFormData({ hash, chunk, index })
           );
         }
-      },
+      });
     });
 
     this.#subscription.add(
-      this.#pool!.error$.subscribe((error) => this.#handleError(error))
+      this.#pool!.error$.subscribe(({ error }) => this.#handleError(error))
     );
     this.#subscription.add(
       this.#pool!.progress$.subscribe((v) => this.progress$.next(v))
@@ -170,8 +172,7 @@ export class UploadClient {
                   }
                 }),
                 concatMap(() =>
-                  this.#pool!.state$.pipe(
-                    filter((state) => state === PromisePool.EState.Complete),
+                  this.#pool!.finishAll$.pipe(
                     map(() => {
                       this.state$.next(EUploadClientState.Merging);
                       return from(this.#merge(hash));
