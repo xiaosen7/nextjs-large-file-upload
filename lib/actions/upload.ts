@@ -1,9 +1,10 @@
 import { IWrapServerActions } from "@/shared/types/actions";
+import { deconstructFormData } from "@/shared/utils/type";
 import { wrapAction } from "@/shared/utils/wrap-action";
 import { IUploadChunkData, IUploadClientActions } from "@/upload/models/client";
 import { UploadSlicer } from "@/upload/models/slicer";
 import { UploadStorage } from "@/upload/models/storages/base";
-import { deconstructFormData } from "@/upload/utils/type";
+import { Readable } from "stream";
 
 const globalThis = global as unknown as { storage: UploadStorage };
 
@@ -14,8 +15,13 @@ export const uploadActions = {
       deconstructFormData<IUploadChunkData>(formData);
     const slicer = new UploadSlicer(hash, globalThis.storage);
 
-    const stream = (chunk as File).stream() as any;
-    await slicer.writeChunk(index, stream);
+    if (chunk instanceof Blob) {
+      const stream = chunk.stream() as any;
+      await slicer.writeChunk(index, stream);
+    } else if (chunk instanceof Buffer) {
+      const stream = Readable.from(chunk as Buffer);
+      await slicer.writeChunk(index, stream);
+    }
   }),
   fileExists: wrapAction(async (hash: string) => {
     "use server";
@@ -37,5 +43,4 @@ export const uploadActions = {
     const slicer = new UploadSlicer(hash, globalThis.storage);
     return slicer.getLastExistedChunkIndex();
   }),
-  // @ts-ignore
 } as const satisfies IWrapServerActions<IUploadClientActions>;

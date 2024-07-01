@@ -48,11 +48,14 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 - Hash validation in merging.
 - Delete chunks when merge failed.
 - Show error from server action in client side.
+- Support Websocket.
 
 ## TODO
 
 - Concurrency number should be determined by the performance of server and browser.
 - Do not to store all chunks of a file in memory in the same time to save memory.
+- Concurrency in multiple uploading.
+- Show uploading count in progress.
 
 ## Record of problems
 

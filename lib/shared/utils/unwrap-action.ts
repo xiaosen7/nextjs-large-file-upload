@@ -3,19 +3,19 @@ import { IUnwrapServerActions } from "../types/actions";
 export function unwrapActions<T extends Record<string, (...args: any) => any>>(
   actions: T
 ) {
-  let r = {} as any;
-  Object.keys(actions).forEach((key) => {
-    r[key] = async (...args: any) => {
-      // @ts-ignore
-      const { data, error } = await actions[key](...args);
+  return new Proxy(actions, {
+    get: (_, name) => {
+      return async (...args: any[]) => {
+        const { data, error } = await actions[name as keyof typeof actions](
+          ...args
+        );
 
-      if (error) {
-        throw error;
-      }
+        if (error) {
+          throw error;
+        }
 
-      return data;
-    };
-  });
-
-  return r as IUnwrapServerActions<T>;
+        return data;
+      };
+    },
+  }) as unknown as IUnwrapServerActions<T>;
 }

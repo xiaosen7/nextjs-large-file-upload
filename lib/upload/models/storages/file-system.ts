@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream, exists } from "fs";
-import { mkdir, readdir, rmdir, writeFile } from "fs/promises";
+import { mkdir, readdir, rm, writeFile } from "fs/promises";
 import path, { dirname, isAbsolute } from "path";
 import { Readable, Writable } from "stream";
 import { promisify } from "util";
@@ -48,6 +48,6 @@ export class FileSystemStorage extends UploadStorage {
   }
 
   rmdir(path: string): Promise<void> {
-    return rmdir(path, { recursive: true });
+    return rm(path, { recursive: true });
   }
 }

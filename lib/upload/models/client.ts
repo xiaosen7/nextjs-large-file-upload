@@ -1,4 +1,5 @@
 import { ERRORS } from "@/shared/constants/errors";
+import { createFormData } from "@/shared/utils/type";
 import { once } from "lodash-es";
 import memoize from "p-memoize";
 import {
@@ -16,7 +17,6 @@ import {
 } from "rxjs";
 import { DEFAULTS } from "../constants/defaults";
 import { PromisePool } from "../utils/promise-pool";
-import { createFormData } from "../utils/type";
 import { calculateChunksHashByWorker } from "../workers/calculate-hash";
 
 export enum EUploadClientState {
@@ -34,7 +34,7 @@ export enum EUploadClientState {
 
 export interface IUploadChunkData {
   hash: string;
-  chunk: Blob;
+  chunk: Blob | Buffer;
   index: number;
 }
 
@@ -136,7 +136,6 @@ export class UploadClient {
   }
 
   #handleError = (error: unknown) => {
-    console.log(error);
     this.state$.next(EUploadClientState.Error);
     this.error$.next(error);
     this.#pool?.stop();

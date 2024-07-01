@@ -3,6 +3,7 @@
 import { Loading } from "@/shared/components/loading";
 import { Input } from "@/shared/components/ui/input";
 import { Progress } from "@/shared/components/ui/progress";
+import { IWrapServerActions } from "@/shared/types/actions";
 import { mp } from "@/shared/utils/jsx";
 import { unwrapActions } from "@/shared/utils/unwrap-action";
 import {
@@ -17,28 +18,47 @@ import { useLocalStorageState, useMap, useMemoizedFn } from "ahooks";
 import { sentenceCase } from "change-case";
 import { get, uniqueId } from "lodash-es";
 import { useObservable } from "rcrx";
-import React, { memo, useEffect, useRef } from "react";
+import React, { memo, useEffect, useMemo, useRef } from "react";
 import { Observable } from "rxjs";
 import { DEFAULTS } from "../constants/defaults";
 import { IUploadClientActions, UploadClient } from "../models/client";
 import { IUploadSetting, UploadSetting } from "./setting";
 
+import { SocketClient } from "@/socket/models/client";
+import { io } from "socket.io-client";
+import { ESupportedProtocol } from "../types";
+
+const socket = io();
+
 const AUTO_UPLOAD = true;
 
 export interface IUploadProps {
-  // @ts-ignore
   actions: IWrapServerActions<IUploadClientActions>;
 }
 
-export const Upload: React.FC<IUploadProps> = ({ actions }) => {
+export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
   const [setting, setSetting] = useLocalStorageState<IUploadSetting>(
     "uploadSetting",
     {
       defaultValue: {
         chunkSize: DEFAULTS.chunkSize,
         concurrency: DEFAULTS.concurrency,
+        protocol: DEFAULTS.protocol,
       },
     }
+  );
+
+  const socketClient = useMemo(
+    () => new SocketClient<IWrapServerActions<IUploadClientActions>>(socket),
+    []
+  );
+
+  const actions = useMemo(
+    () =>
+      setting?.protocol === ESupportedProtocol.Http
+        ? httpActions
+        : socketClient.actions,
+    [setting?.protocol, socketClient, httpActions]
   );
 
   const [clientMap, clientMapActions] = useMap<string, UploadClient>();
@@ -76,6 +96,14 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
 
   return (
     <div className="flex flex-col gap-4 border border-solid py-4">
+      <div className="px-4">
+        <UploadSetting
+          value={setting}
+          onChange={setSetting}
+          disabled={clientMap.size > 0}
+        />
+      </div>
+
       <div className="flex gap-4 px-4">
         <Input
           value={""}
@@ -83,11 +111,6 @@ export const Upload: React.FC<IUploadProps> = ({ actions }) => {
           multiple
           type="file"
           onChange={onChange}
-        />
-        <UploadSetting
-          value={setting}
-          onChange={setSetting}
-          disabled={clientMap.size > 0}
         />
       </div>
 
