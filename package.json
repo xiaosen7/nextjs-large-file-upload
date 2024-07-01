@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch -r tsconfig-paths/register serve.ts",
+    "dev": "tsx watch -r tsconfig-paths/register server.ts",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production tsx -r tsconfig-paths/register server.ts",
     "lint": "next lint",
     "test": "vitest",
     "gen:git-log-file": "git log -1 --pretty=format:\"%cd %h %s\" > public/git.log",
