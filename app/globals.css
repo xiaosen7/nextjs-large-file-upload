@@ -73,4 +73,8 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  body {
+    padding: 1rem;
+  }
 }
