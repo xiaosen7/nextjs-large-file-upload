@@ -1,0 +1,30 @@
+name: Deploy Next.js App
+
+on:
+  push:
+    branches:
+      - main # Update 'main' to your branch if different
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: npm i pnpm -g && pnpm install
+      - name: Build Next.js app
+        run: pnpm run build
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            cd /home/nextjs-large-file-upload
+            git pull origin main
+            pnpm install
+            pnpm run build
+            pnpm run start
