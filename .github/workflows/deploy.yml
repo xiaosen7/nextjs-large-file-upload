@@ -15,7 +15,7 @@ jobs:
         uses: pnpm/action-setup@v4.0.0
         with:
           version: 8.15.0
-      - run: pnpm clean-install
+      - run: pnpm install
       - run: pnpm test -- --run
   build:
     runs-on: ubuntu-latest
@@ -26,7 +26,7 @@ jobs:
         uses: pnpm/action-setup@v4.0.0
         with:
           version: 8.15.0
-      - run: pnpm clean-install
+      - run: pnpm install
       - run: pnpm run build
   deploy:
     runs-on: ubuntu-latest
@@ -43,7 +43,7 @@ jobs:
           script: |
             cd /home/nextjs-large-file-upload
             git pull origin main
-            pnpm clean-install
+            pnpm install
             pnpm run build
             pm2 start
             pm2 ls
