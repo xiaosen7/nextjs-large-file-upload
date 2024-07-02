@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Use the environment secret
-        run: echo ${{ secrets.VPS_HOST }}
+        run: echo {{ secrets.VPS_HOST }}
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Install dependencies
