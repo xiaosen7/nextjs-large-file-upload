@@ -11,12 +11,10 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - name: Setup Pnpm
+        uses: pnpm/action-setup@v4.0.0
         with:
-          node-version: 20
-          cache: 'npm'
-      - run: npm install pnpm@8.15.0 -g
+          version: 8.15.0
       - run: pnpm clean-install
       - run: pnpm test -- --run
   build:
@@ -24,12 +22,10 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - name: Setup Pnpm
+        uses: pnpm/action-setup@v4.0.0
         with:
-          node-version: 20
-          cache: 'npm'
-      - run: npm install pnpm@8.15.0 -g
+          version: 8.15.0
       - run: pnpm clean-install
       - run: pnpm run build
   deploy:
