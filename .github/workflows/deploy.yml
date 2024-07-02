@@ -15,7 +15,8 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: 'npm'
+      - run: npm install pnpm@8.15.0 -g
       - run: pnpm clean-install
       - run: pnpm test -- --run
   build:
@@ -27,7 +28,8 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: 'npm'
+      - run: npm install pnpm@8.15.0 -g
       - run: pnpm clean-install
       - run: pnpm run build
   deploy:
