@@ -4,6 +4,7 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/shared/components/ui/toggle-group";
+import { IS_VERCEL } from "@/shared/constants";
 import { cn } from "@/shared/utils";
 import { useControllableValue } from "ahooks";
 import { filesize } from "filesize";
@@ -27,81 +28,103 @@ export interface IUploadSettingProps {
 
 export const UploadSetting: React.FC<IUploadSettingProps> = (props) => {
   const { disabled } = props;
-  const [value, onChange] = useControllableValue<IUploadSetting>(props, {});
+  const [value, onChange] = useControllableValue<IUploadSetting>(props);
 
   return (
-    <div className={cn(disabled && "cursor-not-allowed")}>
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label className="text-left" htmlFor="chunkSize">
-          Chunk Size
-        </Label>
-        <Slider
-          disabled={disabled}
-          className="col-span-2"
-          id="chunkSize"
-          max={DEFAULTS.maxChunkSize}
-          min={DEFAULTS.minChunkSize}
-          step={1}
-          value={[value.chunkSize]}
-          onValueChange={([chunkSize]) => {
-            onChange({
-              ...value,
-              chunkSize,
-            });
-          }}
-        />
-        <span>
-          {filesize(value.chunkSize, {
-            standard: "jedec",
-          })}
-        </span>
+    <div className={cn(disabled && "cursor-not-allowed", "space-y-4")}>
+      <div className="space-y-2">
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label className="text-left" htmlFor="chunkSize">
+            Chunk Size
+          </Label>
+          <Slider
+            disabled={disabled}
+            className="col-span-2"
+            id="chunkSize"
+            max={DEFAULTS.maxChunkSize}
+            min={DEFAULTS.minChunkSize}
+            step={1}
+            value={[value.chunkSize]}
+            onValueChange={([chunkSize]) => {
+              onChange({
+                ...value,
+                chunkSize,
+              });
+            }}
+          />
+          <span>
+            {filesize(value.chunkSize, {
+              standard: "jedec",
+            })}
+          </span>
+        </div>
+
+        <div className="text-sm text-gray-500">Size of each chunk.</div>
       </div>
 
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label className="text-left" htmlFor="maxWidth">
-          Concurrency
-        </Label>
-        <Slider
-          disabled={disabled}
-          className="col-span-2"
-          id="concurrency"
-          max={DEFAULTS.minConcurrency}
-          min={1}
-          step={1}
-          value={[value.concurrency]}
-          onValueChange={([concurrency]) => {
-            onChange({
-              ...value,
-              concurrency,
-            });
-          }}
-        />
-        <span>{value.concurrency}</span>
+      <div className="space-y-2">
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label className="text-left" htmlFor="maxWidth">
+            Concurrency
+          </Label>
+          <Slider
+            disabled={disabled}
+            className="col-span-2"
+            id="concurrency"
+            max={DEFAULTS.maxConcurrency}
+            min={1}
+            step={1}
+            value={[value.concurrency]}
+            onValueChange={([concurrency]) => {
+              onChange({
+                ...value,
+                concurrency,
+              });
+            }}
+          />
+          <span>{value.concurrency}</span>
+        </div>
+
+        <div className="text-sm text-gray-500">
+          The count of requests when uploading.
+        </div>
       </div>
 
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label className="text-left" htmlFor="maxWidth">
-          Protocol
-        </Label>
+      <div className="space-y-2">
+        <div className="grid grid-cols-4 items-center gap-4">
+          <Label className="text-left" htmlFor="maxWidth">
+            Protocol
+          </Label>
 
-        <ToggleGroup
-          disabled={disabled}
-          className="col-span-2"
-          value={value.protocol}
-          type="single"
-          onValueChange={(protocol) => {
-            onChange({
-              ...value,
-              protocol: protocol as ESupportedProtocol,
-            });
-          }}
-        >
-          {values(ESupportedProtocol).map((protocol) => (
-            <ToggleGroupItem className="w-1/2" key={protocol} value={protocol}>
-              {protocol}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+          <ToggleGroup
+            disabled={disabled || IS_VERCEL}
+            className="col-span-2"
+            value={value.protocol}
+            type="single"
+            onValueChange={(protocol) => {
+              onChange({
+                ...value,
+                protocol: protocol as ESupportedProtocol,
+              });
+            }}
+          >
+            {values(ESupportedProtocol).map((protocol) => (
+              <ToggleGroupItem
+                className="w-1/2"
+                key={protocol}
+                value={protocol}
+              >
+                {protocol}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+
+        <div className="text-sm text-gray-500">
+          The protocol this application use. In vercel deployment, only http can
+          be used. You can clone this project and run development server in
+          local to see websocket usage.
+        </div>
       </div>
     </div>
   );

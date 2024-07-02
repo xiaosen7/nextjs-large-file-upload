@@ -20,12 +20,14 @@ import { get, uniqueId } from "lodash-es";
 import { useObservable } from "rcrx";
 import React, { memo, useEffect, useMemo, useRef } from "react";
 import { Observable } from "rxjs";
-import { DEFAULTS } from "../constants/defaults";
 import { IUploadClientActions, UploadClient } from "../models/client";
 import { IUploadSetting, UploadSetting } from "./setting";
 
+import { IS_VERCEL } from "@/shared/constants";
+import { useIsClient } from "@/shared/hooks/is-client";
 import { SocketClient } from "@/socket/models/client";
 import { io } from "socket.io-client";
+import { DEFAULTS } from "../constants/defaults";
 import { ESupportedProtocol } from "../types";
 
 const socket = io();
@@ -37,6 +39,7 @@ export interface IUploadProps {
 }
 
 export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
+  const { isClient } = useIsClient();
   const [setting, setSetting] = useLocalStorageState<IUploadSetting>(
     "uploadSetting",
     {
@@ -49,13 +52,16 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
   );
 
   const socketClient = useMemo(
-    () => new SocketClient<IWrapServerActions<IUploadClientActions>>(socket),
+    () =>
+      IS_VERCEL
+        ? null
+        : new SocketClient<IWrapServerActions<IUploadClientActions>>(socket),
     []
   );
 
   const actions = useMemo(
     () =>
-      setting?.protocol === ESupportedProtocol.Http
+      setting?.protocol === ESupportedProtocol.Http || !socketClient
         ? httpActions
         : socketClient.actions,
     [setting?.protocol, socketClient, httpActions]
@@ -96,9 +102,17 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
 
   return (
     <div className="flex flex-col gap-4 border border-solid py-4">
-      <div className="px-4">
+      <div className="px-4 mb-4">
         <UploadSetting
-          value={setting}
+          value={
+            isClient
+              ? setting
+              : {
+                  concurrency: 0,
+                  chunkSize: 0,
+                  protocol: ESupportedProtocol.Http,
+                }
+          }
           onChange={setSetting}
           disabled={clientMap.size > 0}
         />
