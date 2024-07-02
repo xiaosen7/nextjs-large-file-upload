@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tsx watch -r tsconfig-paths/register server.ts",
+    "dev": "pnpm start:socket-server & next dev",
     "build": "next build",
-    "start": "NODE_ENV=production tsx -r tsconfig-paths/register server.ts",
+    "start": "pnpm start:socket-server & next start",
+    "start:socket-server": "NODE_ENV=production tsx watch -r tsconfig-paths/register ./socket-server.ts",
     "lint": "next lint",
     "test": "vitest",
     "gen:git-log-file": "git log -1 --pretty=format:\"%cd %h %s\" > public/git.log",

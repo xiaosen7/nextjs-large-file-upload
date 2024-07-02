@@ -1,16 +1,8 @@
 import { GitLog } from "@/shared/components/git-log";
-import { IS_VERCEL } from "@/shared/constants";
 import { cn } from "@/shared/utils";
-import { FileSystemStorage } from "@/upload/models/storages/file-system";
-import { MemoryStorage } from "@/upload/models/storages/memory";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import path from "node:path";
 import "./globals.css";
-
-(global as any).storage = IS_VERCEL
-  ? new MemoryStorage()
-  : new FileSystemStorage(path.resolve("node_modules", ".cache"));
 
 const inter = Inter({ subsets: ["latin"] });
 

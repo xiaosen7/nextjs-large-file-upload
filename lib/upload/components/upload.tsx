@@ -23,14 +23,12 @@ import { Observable } from "rxjs";
 import { IUploadClientActions, UploadClient } from "../models/client";
 import { IUploadSetting, UploadSetting } from "./setting";
 
-import { IS_VERCEL } from "@/shared/constants";
+import { WEBSOCKET_PORT } from "@/shared/constants";
 import { useIsClient } from "@/shared/hooks/is-client";
 import { SocketClient } from "@/socket/models/client";
 import { io } from "socket.io-client";
 import { DEFAULTS } from "../constants/defaults";
 import { ESupportedProtocol } from "../types";
-
-const socket = io();
 
 const AUTO_UPLOAD = true;
 
@@ -53,10 +51,12 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
 
   const socketClient = useMemo(
     () =>
-      IS_VERCEL
-        ? null
-        : new SocketClient<IWrapServerActions<IUploadClientActions>>(socket),
-    []
+      isClient
+        ? new SocketClient<IWrapServerActions<IUploadClientActions>>(
+            io(`${location.protocol}//${location.hostname}:${WEBSOCKET_PORT}`)
+          )
+        : null,
+    [isClient]
   );
 
   const actions = useMemo(
@@ -110,9 +110,10 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
               : {
                   concurrency: 0,
                   chunkSize: 0,
-                  protocol: ESupportedProtocol.Http,
+                  protocol: "",
                 }
           }
+          enableProtocolSwitch={isClient ? !!socketClient : true}
           onChange={setSetting}
           disabled={clientMap.size > 0}
         />
