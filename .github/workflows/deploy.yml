@@ -32,7 +32,7 @@ jobs:
     env:
       repo: https://github.com/${{ github.repository }}
       branch: main
-      dir: /home/nextjs-large-file-upload_${{ github.sha }}
+      dir: /home/nextjs-large-file-upload
     runs-on: ubuntu-latest
     steps:
       - name: Use the environment secret
@@ -47,10 +47,12 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            git clone --branch ${{ env.branch }} --depth 1 ${{ env.repo }} ${{ env.dir }}
+            mkdir -p ${{ env.dir }}
             cd ${{ env.dir }}
+            git init
+            git pull ${{ env.repo }} main --depth 1
             pnpm install --frozen-lockfile
             pnpm run build
             pm2 start
             pm2 ls
-            pm2 logs large-file-upload --nostream
+            pm2 logs --nostream
