@@ -64,7 +64,7 @@ describe("PromisePool2", () => {
   });
 
   test(nameOf<PromisePool>("elapse$"), async (): Promise<void> => {
-    const timeouts = [100, 100, 100, 100, 100];
+    const timeouts = [100, 100, 100];
 
     const pool = new PromisePool({
       concurrency: 1,
@@ -77,9 +77,17 @@ describe("PromisePool2", () => {
     );
 
     pool.start();
+    await sleep(150);
+    expect(pool.elapse$.value).toBe(1);
 
-    await sleep(350);
-    expect(pool.elapse$.value).toBe(3);
+    pool.stop();
+    await sleep(100);
+    expect(pool.elapse$.value).toBe(1);
+
+    pool.start();
+    await sleep(100);
+    expect(pool.progress$.value).toBe(100);
+    expect(pool.elapse$.value).toBe(2);
   });
 
   describe(nameOf<IPromisePoolOptions>("concurrency"), () => {

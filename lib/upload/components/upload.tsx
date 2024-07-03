@@ -185,7 +185,6 @@ const UploadSingleFile = memo(function UploadSingleFile(
 
   const state = useObservable(client.state$, UploadClient.EState.Default);
   const error = useObservable(client.error$, null);
-  const elapsed = useObservable(client.poolElapse$, 0);
 
   const stateString =
     state === UploadClient.EState.Error && error
@@ -231,13 +230,22 @@ const UploadSingleFile = memo(function UploadSingleFile(
       <div className="text-xs gap-2 flex text-gray-400">
         <div> Concurrency {client.concurrency} </div>
         <div>, Chunk size {formatFileSize(client.chunkSize)} </div>
-        <div className={cn(elapsed === 0 && "hidden")}>
-          , Uploading time {elapsed / 10} s
-        </div>
+        <UploadingElapsed elapse$={client.poolElapse$} />
       </div>
     </div>
   );
 });
+
+const UploadingElapsed: React.FC<{
+  elapse$: UploadClient["poolElapse$"];
+}> = ({ elapse$ }) => {
+  const elapsed = useObservable(elapse$, 0);
+  return (
+    <div className={cn(elapsed === 0 && "hidden")}>
+      , Uploading time {elapsed / 10} s
+    </div>
+  );
+};
 
 const UploadStateIcon: React.FC<{
   state$: UploadClient["state$"];

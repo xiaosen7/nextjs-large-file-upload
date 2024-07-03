@@ -1,13 +1,13 @@
 import { ERRORS } from "@/shared/constants/errors";
 import {
   BehaviorSubject,
-  EMPTY,
   Subject,
   Subscription,
   from,
   interval,
   mergeMap,
   range,
+  takeUntil,
 } from "rxjs";
 
 type ITask = () => Promise<void>;
@@ -48,6 +48,14 @@ export class PromisePool {
     this.#tasks.push(task);
   }
 
+  #startTimer() {
+    interval(100)
+      .pipe(takeUntil(this.#stop$))
+      .subscribe(() => {
+        this.elapse$.next(this.elapse$.value + 1);
+      });
+  }
+
   start() {
     if (this.#stopPromise) {
       this.continue();
@@ -64,11 +72,7 @@ export class PromisePool {
 
     // below code will only execute once
 
-    this.#subscription.add(
-      interval(100).subscribe((i) => {
-        this.elapse$.next(i + 1);
-      })
-    );
+    this.#startTimer();
 
     this.#subscription.add(
       range(0, this.#tasks.length)
@@ -76,16 +80,7 @@ export class PromisePool {
           mergeMap((index) => {
             return from(Promise.resolve(this.#stopPromise)).pipe(
               mergeMap(() => {
-                if (this.#activatedIndices.has(index)) {
-                  // console.log(`skip ${index}`);
-                  return EMPTY;
-                }
-
-                // console.log(`start ${index}`);
-
                 this.progress$.next(((index + 1) / this.#total) * 100);
-
-                this.#activatedIndices.add(index);
 
                 return this.#tasks
                   [index]()
@@ -130,9 +125,12 @@ export class PromisePool {
       return;
     }
 
+    this.#stop$.next();
+
     this.#stopPromise = new Promise((resolve) => {
       this.continue = () => {
         this.#stopPromise = null;
+        this.#startTimer();
         resolve();
       };
     });
@@ -145,6 +143,7 @@ export class PromisePool {
     this.#stop$.complete();
     this.finish$.complete();
     this.finishAll$.complete();
+    this.elapse$.complete();
     this.#tasks = [];
   }
 }
