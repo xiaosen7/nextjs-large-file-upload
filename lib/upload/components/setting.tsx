@@ -24,11 +24,10 @@ export interface IUploadSettingProps {
   onChange?: (value: IUploadSetting) => void;
   defaultValue?: IUploadSetting;
   disabled?: boolean;
-  enableProtocolSwitch?: boolean;
 }
 
 export const UploadSetting: React.FC<IUploadSettingProps> = (props) => {
-  const { disabled, enableProtocolSwitch } = props;
+  const { disabled } = props;
   const [value, onChange] = useControllableValue<IUploadSetting>(props);
 
   return (
@@ -87,7 +86,7 @@ export const UploadSetting: React.FC<IUploadSettingProps> = (props) => {
         </div>
       </div>
 
-      <div className={cn("space-y-2", !enableProtocolSwitch && "hidden")}>
+      <div className={"space-y-2"}>
         <div className="grid grid-cols-4 items-center gap-4">
           <Label className="text-left" htmlFor="maxWidth">
             Protocol

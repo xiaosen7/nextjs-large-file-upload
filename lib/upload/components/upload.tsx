@@ -123,7 +123,6 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
                   protocol: "",
                 }
           }
-          enableProtocolSwitch={isClient}
           onChange={setSetting}
           disabled={!isClient}
         />
