@@ -34,7 +34,7 @@ jobs:
       - name: Use the environment secret
         run: echo ${{ secrets.VPS_HOST }}
       - name: Use the default environment variables
-        run: echo $GITHUB_BASE_RE
+        run: echo $GITHUB_BASE_REF
       # - name: Deploy to VPS
       #   uses: appleboy/ssh-action@master
       #   with:
