@@ -50,9 +50,9 @@ jobs:
             mkdir -p ${{ env.dir }}
             cd ${{ env.dir }}
             git init
-            git remote add origin repo
+            git remote add origin ${{ repo }}
             git fetch --all
-            git reset --hard origin/main
+            git reset --hard origin/${{ branch }}
             pnpm install --frozen-lockfile
             pnpm run build
             pm2 start
