@@ -5,6 +5,7 @@ import {
   Subject,
   Subscription,
   from,
+  interval,
   mergeMap,
   range,
 } from "rxjs";
@@ -23,6 +24,7 @@ export class PromisePool {
   }>();
   finish$ = new Subject<{ index: number; error?: unknown }>();
   finishAll$ = new Subject<void>();
+  elapse$ = new BehaviorSubject<number>(0);
 
   #stop$ = new Subject<void>();
 
@@ -59,7 +61,15 @@ export class PromisePool {
     this.#started = true;
 
     const { concurrency } = this.options;
-    // console.log(`start total ${this.#tasks.length} tasks`);
+
+    // below code will only execute once
+
+    this.#subscription.add(
+      interval(100).subscribe((i) => {
+        this.elapse$.next(i + 1);
+      })
+    );
+
     this.#subscription.add(
       range(0, this.#tasks.length)
         .pipe(
@@ -102,15 +112,10 @@ export class PromisePool {
             }
 
             this.finish$.next({ index, error });
-
-            // console.log(`complete ${index}`);
           },
           complete: () => {
-            // console.log("complete");
-            if (this.#finishedIndices.size === this.#total) {
-              // console.log("complete all");
-              this.finishAll$.next();
-            }
+            this.finishAll$.next();
+            this.destroy();
           },
         })
     );

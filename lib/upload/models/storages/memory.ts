@@ -67,7 +67,7 @@ export class MemoryStorage extends UploadStorage {
   }
 
   joinPaths(...paths: string[]): string {
-    return path.join(...paths);
+    return path.posix.join(...paths);
   }
 
   resolvePaths(...paths: string[]): string {
@@ -75,7 +75,7 @@ export class MemoryStorage extends UploadStorage {
       return this.joinPaths(...paths);
     }
 
-    return path.join(this.root, ...paths);
+    return this.joinPaths(this.root, ...paths);
   }
 
   async createWriteStream(path: string) {

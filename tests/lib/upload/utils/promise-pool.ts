@@ -63,6 +63,25 @@ describe("PromisePool2", () => {
     });
   });
 
+  test(nameOf<PromisePool>("elapse$"), async (): Promise<void> => {
+    const timeouts = [100, 100, 100, 100, 100];
+
+    const pool = new PromisePool({
+      concurrency: 1,
+    });
+
+    timeouts.forEach((ms) =>
+      pool.append(async () => {
+        await sleep(ms);
+      })
+    );
+
+    pool.start();
+
+    await sleep(350);
+    expect(pool.elapse$.value).toBe(3);
+  });
+
   describe(nameOf<IPromisePoolOptions>("concurrency"), () => {
     async function doConcurrencyTest(
       concurrency: number,

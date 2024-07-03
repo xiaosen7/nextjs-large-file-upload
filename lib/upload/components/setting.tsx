@@ -6,8 +6,8 @@ import {
 } from "@/shared/components/ui/toggle-group";
 import { IS_VERCEL } from "@/shared/constants";
 import { cn } from "@/shared/utils";
+import { formatFileSize } from "@/shared/utils/format-file-size";
 import { useControllableValue } from "ahooks";
-import { filesize } from "filesize";
 import { values } from "lodash-es";
 import React from "react";
 import { DEFAULTS } from "../constants/defaults";
@@ -53,11 +53,7 @@ export const UploadSetting: React.FC<IUploadSettingProps> = (props) => {
               });
             }}
           />
-          <span>
-            {filesize(value.chunkSize, {
-              standard: "jedec",
-            })}
-          </span>
+          <span>{formatFileSize(value.chunkSize)}</span>
         </div>
 
         <div className="text-sm text-gray-500">Size of each chunk.</div>
@@ -122,9 +118,7 @@ export const UploadSetting: React.FC<IUploadSettingProps> = (props) => {
         </div>
 
         <div className="text-sm text-gray-500">
-          The protocol this application use. In vercel deployment, only http can
-          be used. You can clone this project and run development server in
-          local to see websocket usage.
+          The protocol when uploading.
         </div>
       </div>
     </div>

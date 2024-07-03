@@ -52,6 +52,7 @@ export class UploadClient {
   state$ = new BehaviorSubject<EUploadClientState>(EUploadClientState.Default);
   progress$ = new BehaviorSubject<number>(0);
   error$ = new Subject();
+  poolElapse$ = new BehaviorSubject<number>(0);
 
   #pool: PromisePool | null = null;
   #subscription = new Subscription();
@@ -60,8 +61,8 @@ export class UploadClient {
   constructor(
     public readonly file: File,
     private actions: IUploadClientActions,
-    private concurrency = DEFAULTS.concurrency,
-    private chunkSize = DEFAULTS.chunkSize
+    public readonly concurrency = DEFAULTS.concurrency,
+    public readonly chunkSize = DEFAULTS.chunkSize
   ) {}
 
   #split() {
@@ -108,12 +109,12 @@ export class UploadClient {
       hash
     );
 
-    this.#pool = new PromisePool({
+    const pool = new PromisePool({
       concurrency: this.concurrency,
     });
 
     chunks.forEach((chunk, index) => {
-      this.#pool!.append(async () => {
+      pool.append(async () => {
         if (lastExistedChunkIndex >= index) {
           return;
         }
@@ -128,11 +129,16 @@ export class UploadClient {
     });
 
     this.#subscription.add(
-      this.#pool!.error$.subscribe(({ error }) => this.#handleError(error))
+      pool.error$.subscribe(({ error }) => this.#handleError(error))
     );
     this.#subscription.add(
-      this.#pool!.progress$.subscribe((v) => this.progress$.next(v))
+      pool.progress$.subscribe((v) => this.progress$.next(v))
     );
+    this.#subscription.add(
+      pool.elapse$.subscribe((v) => this.poolElapse$.next(v))
+    );
+
+    this.#pool = pool;
   }
 
   #handleError = (error: unknown) => {
@@ -143,7 +149,7 @@ export class UploadClient {
 
   #run(autoUpload = false) {
     if (this.#destroyed) {
-      this.#handleError(ERRORS.upload.clientHasDestroyed);
+      throw ERRORS.upload.clientHasDestroyed;
     }
 
     this.#subscription.unsubscribe();
@@ -218,10 +224,11 @@ export class UploadClient {
   }
 
   destroy() {
+    this.#destroyed = true;
     this.progress$.complete();
     this.error$.complete();
     this.state$.complete();
-    this.#destroyed = true;
+    this.poolElapse$.complete();
     this.#subscription.unsubscribe();
     this.#pool?.destroy();
   }

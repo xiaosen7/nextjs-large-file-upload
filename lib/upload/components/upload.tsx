@@ -23,8 +23,11 @@ import { Observable } from "rxjs";
 import { IUploadClientActions, UploadClient } from "../models/client";
 import { IUploadSetting, UploadSetting } from "./setting";
 
+import { Badge } from "@/shared/components/ui/badge";
 import { WEBSOCKET_PORT } from "@/shared/constants";
 import { useIsClient } from "@/shared/hooks/is-client";
+import { cn } from "@/shared/utils";
+import { formatFileSize } from "@/shared/utils/format-file-size";
 import { SocketClient } from "@/socket/models/client";
 import { io } from "socket.io-client";
 import { DEFAULTS } from "../constants/defaults";
@@ -48,6 +51,11 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
       },
     }
   );
+  const [clientMap, clientMapActions] = useMap<string, UploadClient>();
+  const [idToProtocolMap, idToProtocolMapActions] = useMap<
+    string,
+    ESupportedProtocol
+  >();
 
   const socketClient = useMemo(
     () =>
@@ -58,16 +66,16 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
         : null,
     [isClient]
   );
+  const canUseWebsocket = !!socketClient;
+  const protocol =
+    setting?.protocol === ESupportedProtocol.Http || !canUseWebsocket
+      ? ESupportedProtocol.Http
+      : ESupportedProtocol.Websocket;
 
   const actions = useMemo(
-    () =>
-      setting?.protocol === ESupportedProtocol.Http || !socketClient
-        ? httpActions
-        : socketClient.actions,
-    [setting?.protocol, socketClient, httpActions]
+    () => (protocol ? httpActions : socketClient!.actions),
+    [protocol, socketClient, httpActions]
   );
-
-  const [clientMap, clientMapActions] = useMap<string, UploadClient>();
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollContainer = scrollContainerRef.current;
@@ -81,10 +89,12 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
         setting?.concurrency,
         setting?.chunkSize
       );
+      idToProtocolMap.set(id, protocol);
       clientMap.set(id, client);
     });
 
     clientMapActions.setAll(clientMap);
+    idToProtocolMapActions.setAll(idToProtocolMap);
 
     if (scrollContainer) {
       setTimeout(() => {
@@ -113,9 +123,9 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
                   protocol: "",
                 }
           }
-          enableProtocolSwitch={isClient ? !!socketClient : true}
+          enableProtocolSwitch={isClient}
           onChange={setSetting}
-          disabled={clientMap.size > 0}
+          disabled={!isClient}
         />
       </div>
 
@@ -129,13 +139,14 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
         />
       </div>
 
-      <div ref={scrollContainerRef} className="h-64 overflow-auto px-4">
+      <div ref={scrollContainerRef} className="h-64 overflow-auto">
         {Array.from(clientMap.keys()).map((id) => (
           <UploadSingleFile
             key={id}
             client={clientMap.get(id)!}
             onRemove={() => onRemove(id)}
             {...setting}
+            protocol={idToProtocolMap.get(id)}
           />
         ))}
       </div>
@@ -149,11 +160,12 @@ interface IUploadSingleFileProps {
   concurrency?: number;
   client: UploadClient;
   chunkSize?: number;
+  protocol?: string;
 }
 const UploadSingleFile = memo(function UploadSingleFile(
   props: IUploadSingleFileProps
 ) {
-  const { client, onRemove } = props;
+  const { client, onRemove, protocol } = props;
   const file = client.file;
 
   useEffect(() => {
@@ -174,6 +186,7 @@ const UploadSingleFile = memo(function UploadSingleFile(
 
   const state = useObservable(client.state$, UploadClient.EState.Default);
   const error = useObservable(client.error$, null);
+  const elapsed = useObservable(client.poolElapse$, 0);
 
   const stateString =
     state === UploadClient.EState.Error && error
@@ -184,19 +197,23 @@ const UploadSingleFile = memo(function UploadSingleFile(
 
   return mp(
     props,
-    <div className="py-2 flex flex-col gap-2">
-      <div className="flex flex-col gap-2 justify-between">
-        <div title={file.name} className="truncate">
+    <div className="py-2  px-4 flex flex-col gap-2 hover:bg-gray-100">
+      <div className="flex items-center justify-between">
+        <div title={file.name} className="flex-1 truncate">
           {file.name}
         </div>
 
-        <div
-          title={stateString}
-          className="text-gray-500 text-xs flex gap-2 overflow-hidden"
-        >
-          <UploadStateIcon state$={client.state$} />
-          <div className="truncate flex-1">{stateString}</div>
-        </div>
+        <Badge variant={"secondary"} className="w-[90px] justify-center mr-2">
+          {protocol}
+        </Badge>
+      </div>
+
+      <div
+        title={stateString}
+        className="text-gray-500 text-xs flex gap-2 overflow-hidden"
+      >
+        <UploadStateIcon state$={client.state$} />
+        <div className="truncate flex-1">{stateString}</div>
       </div>
 
       <div className="flex gap-2 items-center">
@@ -209,6 +226,14 @@ const UploadSingleFile = memo(function UploadSingleFile(
             onRestart={onRestart}
           />
           <TrashIcon className="cursor-pointer ml-2" onClick={onRemove} />
+        </div>
+      </div>
+
+      <div className="text-xs gap-2 flex text-gray-400">
+        <div> Concurrency {client.concurrency} </div>
+        <div>, Chunk size {formatFileSize(client.chunkSize)} </div>
+        <div className={cn(elapsed === 0 && "hidden")}>
+          , Uploading time {elapsed / 10} s
         </div>
       </div>
     </div>
