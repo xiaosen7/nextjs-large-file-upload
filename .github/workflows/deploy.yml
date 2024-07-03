@@ -33,6 +33,8 @@ jobs:
     steps:
       - name: Use the environment secret
         run: echo ${{ secrets.VPS_HOST }}
+      - name: Use the default environment variables
+        run: echo ${{ GITHUB_SHA }}
       - name: Deploy to VPS
         uses: appleboy/ssh-action@master
         with:
