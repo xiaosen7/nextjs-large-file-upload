@@ -34,15 +34,15 @@ jobs:
       - name: Use the environment secret
         run: echo ${{ secrets.VPS_HOST }}
       - name: Use the default environment variables
-        run: echo $GITHUB_SHA ${{ github.sha }} ${{ github.base_ref }}
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
-          script: |
+        run: echo $GITHUB_SHA ${{ github.sha }} ${{ github.BASE_REF }}
+      # - name: Deploy to VPS
+      #   uses: appleboy/ssh-action@master
+      #   with:
+      #     host: ${{ secrets.VPS_HOST }}
+      #     username: ${{ secrets.VPS_USER }}
+      #     key: ${{ secrets.VPS_SSH_KEY }}
+      #     port: ${{ secrets.VPS_PORT }}
+      #     script: |
             # git clone --branch ${{ github.base_ref }} --depth 1 https://github.com/${{ github.repository }} /home/nextjs-large-file-upload_${{ github.sha }}
             # cd /home/nextjs-large-file-upload_${{ github.sha }}
             # pnpm install --frozen-lockfile
