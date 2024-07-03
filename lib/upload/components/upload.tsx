@@ -73,7 +73,10 @@ export const Upload: React.FC<IUploadProps> = ({ actions: httpActions }) => {
       : ESupportedProtocol.Websocket;
 
   const actions = useMemo(
-    () => (protocol ? httpActions : socketClient!.actions),
+    () =>
+      protocol === ESupportedProtocol.Http
+        ? httpActions
+        : socketClient!.actions,
     [protocol, socketClient, httpActions]
   );
 

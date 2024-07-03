@@ -42,6 +42,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 - Do not to store all chunks of a file in memory in the same time to save memory.
 - Concurrency in multiple uploading.
 - Show uploading count in progress.
+- Support download.
 
 ## Record of problems
 
