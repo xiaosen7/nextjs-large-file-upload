@@ -39,18 +39,18 @@ jobs:
         run: echo ${{ secrets.VPS_HOST }}
       - name: Use the default environment variables
         run: echo ${{ env.branch }} ${{ env.repo }} ${{ env.dir }}
-      # - name: Deploy to VPS
-      #   uses: appleboy/ssh-action@master
-      #   with:
-      #     host: ${{ secrets.VPS_HOST }}
-      #     username: ${{ secrets.VPS_USER }}
-      #     key: ${{ secrets.VPS_SSH_KEY }}
-      #     port: ${{ secrets.VPS_PORT }}
-      #     script: |
-            # git clone --branch ${{ env.branch }} --depth 1 ${{ env.repo }} ${{ env.dir }}
-            # cd /home/nextjs-large-file-upload_${{ github.sha }}
-            # pnpm install --frozen-lockfile
-            # pnpm run build
-            # pm2 start
-            # pm2 ls
-            # pm2 logs large-file-upload --nostream
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            git clone --branch ${{ env.branch }} --depth 1 ${{ env.repo }} ${{ env.dir }}
+            cd ${{ env.dir }}
+            pnpm install --frozen-lockfile
+            pnpm run build
+            pm2 start
+            pm2 ls
+            pm2 logs large-file-upload --nostream
