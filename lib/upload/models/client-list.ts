@@ -1,4 +1,3 @@
 export class UploadClientList {
-  // constructor(options: ) {
-  // }
+  //   constructor(options: IUploadClientListOptions) {}
 }
