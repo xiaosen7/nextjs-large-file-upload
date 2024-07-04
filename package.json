@@ -11,7 +11,7 @@
     "start:socket-server": "cross-env NODE_ENV=production tsx watch -r tsconfig-paths/register ./socket-server.ts",
     "lint": "next lint",
     "test": "vitest",
-    "gen:git-log-file": "git log -1 --pretty=format:\"%cd %h %s\" > public/git.log",
+    "gen:git-log-file": "mkdirp public && echo '' > public/git.log",
     "prepare": "pnpm gen:git-log-file"
   },
   "dependencies": {
@@ -37,6 +37,7 @@
     "filesize": "^10.1.2",
     "lodash-es": "^4.17.21",
     "lucide-react": "^0.396.0",
+    "mkdirp": "^3.0.1",
     "multistream": "^4.1.0",
     "next": "14.2.4",
     "npm-run-all": "^4.1.5",
