@@ -6,7 +6,6 @@ on:
       - main
 
 env:
-  pnpmVersion: 9.4.0
   pm2Version: 5.4.1
 
 jobs:
@@ -15,10 +14,14 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
-      - name: Setup Pnpm
-        uses: pnpm/action-setup@v4.0.0
+      - name: Setup Nodejs
+        uses: actions/setup-node@v4.0.2
         with:
-          version: ${{ env.pnpmVersion }}
+          node-version: 20
+      - run: node -v
+      - run: corepack enable pnpm
+      - run: corepack install
+      - run: pnpm -v
       - run: pnpm install --frozen-lockfile
       - run: pnpm test -- --run
   build:
@@ -26,10 +29,14 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
-      - name: Setup Pnpm
-        uses: pnpm/action-setup@v4.0.0
+      - name: Setup Nodejs
+        uses: actions/setup-node@v4.0.2
         with:
-          version: ${{ env.pnpmVersion }}
+          node-version: 20
+      - run: node -v
+      - run: corepack enable pnpm
+      - run: corepack install
+      - run: pnpm -v
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
   deploy:
@@ -51,15 +58,25 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            npm install -g pnpm@${{ env.pnpmVersion }} pm2@${{ env.pm2Version }}
+            node -v
+
+            # git reset
             mkdir -p ${{ env.dir }}
             cd ${{ env.dir }}
             git init
             git remote add origin ${{ env.repo }}
             git fetch --all
             git reset --hard origin/${{ env.branch }}
+
+            # install depencencies
+            corepack enable pnpm
+            corepack install
+            pnpm -v
             pnpm install --frozen-lockfile
+
+            # start pm2
             pnpm run build
+            npm install -g pm2@${{ env.pm2Version }}
             pm2 start
             pm2 ls
             pm2 logs --lines 10 --nostream
