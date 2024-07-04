@@ -28,6 +28,7 @@ import { WEBSOCKET_PORT } from "@/shared/constants";
 import { useIsClient } from "@/shared/hooks/is-client";
 import { cn } from "@/shared/utils";
 import { formatFileSize } from "@/shared/utils/format-file-size";
+import { formatTimeBySeconds } from "@/shared/utils/format-time";
 import { SocketClient } from "@/socket/models/client";
 import { io } from "socket.io-client";
 import { DEFAULTS } from "../constants/defaults";
@@ -245,7 +246,7 @@ const UploadingElapsed: React.FC<{
   const elapsed = useObservable(elapse$, 0);
   return (
     <div className={cn(elapsed === 0 && "hidden")}>
-      , Uploading time {elapsed / 10} s
+      , Uploading time {formatTimeBySeconds(elapsed / 10)}
     </div>
   );
 };

@@ -10,13 +10,14 @@ import {
   concatAll,
   concatMap,
   from,
+  interval,
   map,
   switchMap,
   take,
   tap,
 } from "rxjs";
 import { DEFAULTS } from "../constants/defaults";
-import { PromisePool } from "../utils/promise-pool";
+import { AsyncQueue } from "../utils/async-queue";
 import { calculateChunksHashByWorker } from "../workers/calculate-hash";
 
 export enum EUploadClientState {
@@ -54,16 +55,20 @@ export class UploadClient {
   error$ = new Subject();
   poolElapse$ = new BehaviorSubject<number>(0);
 
-  #pool: PromisePool | null = null;
   #subscription = new Subscription();
   #destroyed = false;
+
+  #asyncQueue: AsyncQueue;
 
   constructor(
     public readonly file: File,
     private actions: IUploadClientActions,
     public readonly concurrency = DEFAULTS.concurrency,
     public readonly chunkSize = DEFAULTS.chunkSize
-  ) {}
+  ) {
+    this.#asyncQueue = new AsyncQueue({ concurrency });
+    this.#asyncQueue.pause();
+  }
 
   #split() {
     const chunks: Blob[] = [];
@@ -102,19 +107,17 @@ export class UploadClient {
     };
   }
 
-  async #createPool(hash: string, chunks: Blob[]) {
-    this.#pool?.destroy();
+  async #initialAsyncQueue(hash: string, chunks: Blob[]) {
+    this.#asyncQueue.kill();
+    this.#asyncQueue = new AsyncQueue({ concurrency: this.concurrency });
+    this.#asyncQueue.pause();
 
     const lastExistedChunkIndex = await this.actions.getLastExistedChunkIndex(
       hash
     );
 
-    const pool = new PromisePool({
-      concurrency: this.concurrency,
-    });
-
     chunks.forEach((chunk, index) => {
-      pool.append(async () => {
+      this.#asyncQueue.push(async () => {
         if (lastExistedChunkIndex >= index) {
           return;
         }
@@ -129,22 +132,24 @@ export class UploadClient {
     });
 
     this.#subscription.add(
-      pool.error$.subscribe(({ error }) => this.#handleError(error))
-    );
-    this.#subscription.add(
-      pool.progress$.subscribe((v) => this.progress$.next(v))
-    );
-    this.#subscription.add(
-      pool.elapse$.subscribe((v) => this.poolElapse$.next(v))
+      this.#asyncQueue.error$.subscribe((v) => this.#handleError(v))
     );
 
-    this.#pool = pool;
+    this.#subscription.add(
+      this.#asyncQueue.progress$.subscribe((v) => this.progress$.next(v))
+    );
+
+    this.#subscription.add(
+      interval(100).subscribe(() => {
+        this.poolElapse$.next(this.#asyncQueue.runningTime / 100);
+      })
+    );
   }
 
   #handleError = (error: unknown) => {
     this.state$.next(EUploadClientState.Error);
     this.error$.next(error);
-    this.#pool?.stop();
+    this.#asyncQueue.pause();
   };
 
   #run(autoUpload = false) {
@@ -153,8 +158,6 @@ export class UploadClient {
     }
 
     this.#subscription.unsubscribe();
-    this.#pool?.destroy();
-    this.#pool = null;
     this.#subscription = new Subscription();
 
     this.#subscription.add(
@@ -162,32 +165,31 @@ export class UploadClient {
         .pipe(
           switchMap(({ chunks, exists, hash }) => {
             if (exists) {
-              // Directly set the state
-              this.state$.next(EUploadClientState.FastUploaded);
               this.progress$.next(100);
+              this.state$.next(EUploadClientState.FastUploaded);
               return EMPTY;
-            } else {
-              // Transition to createPool using switchMap
-              return from(this.#createPool(hash, chunks)).pipe(
-                tap(() => {
-                  if (autoUpload) {
-                    this.startPool();
-                  } else {
-                    this.state$.next(EUploadClientState.WaitForUpload);
-                  }
-                }),
-                concatMap(() =>
-                  this.#pool!.finishAll$.pipe(
-                    map(() => {
-                      this.state$.next(EUploadClientState.Merging);
-                      return from(this.#merge(hash));
-                    })
-                  )
-                ),
-                concatAll()
-              );
             }
+
+            return from(this.#initialAsyncQueue(hash, chunks)).pipe(
+              concatMap(() => {
+                if (autoUpload) {
+                  this.startPool();
+                } else {
+                  this.state$.next(EUploadClientState.WaitForUpload);
+                }
+
+                return from(this.#asyncQueue.drain()).pipe(
+                  map(() => {
+                    this.#asyncQueue.pause();
+                    this.progress$.next(100);
+                    this.state$.next(EUploadClientState.Merging);
+                    return from(this.#merge(hash));
+                  })
+                );
+              })
+            );
           }),
+          concatAll(),
           tap(() => this.state$.next(EUploadClientState.UploadSuccessfully)),
           take(1)
         )
@@ -206,17 +208,13 @@ export class UploadClient {
   };
 
   startPool() {
-    if (this.#pool) {
-      this.#pool.start();
-      this.state$.next(EUploadClientState.Uploading);
-    }
+    this.#asyncQueue.resume();
+    this.state$.next(EUploadClientState.Uploading);
   }
 
   stopPool() {
-    if (this.#pool) {
-      this.#pool.stop();
-      this.state$.next(EUploadClientState.UploadStopped);
-    }
+    this.#asyncQueue.pause();
+    this.state$.next(EUploadClientState.UploadStopped);
   }
 
   #merge(hash: string) {
@@ -230,6 +228,6 @@ export class UploadClient {
     this.state$.complete();
     this.poolElapse$.complete();
     this.#subscription.unsubscribe();
-    this.#pool?.destroy();
+    this.#asyncQueue.kill();
   }
 }
