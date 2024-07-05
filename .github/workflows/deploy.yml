@@ -38,7 +38,7 @@ jobs:
           echo ${{ secrets.PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
       - name: Build and Push Image
         run: |
-          git log -1 --pretty=format:\"%cd %h %s\" > public/git.log
+          git log -1 --pretty=format:"%cd %h %s" > public/git.log
           docker build . -f ${{ env.DOCKERFILE }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
