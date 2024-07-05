@@ -42,21 +42,32 @@ ENV NODE_ENV production
 # Uncomment the following line in case you want to disable telemetry during runtime.
 # ENV NEXT_TELEMETRY_DISABLED 1
 
-COPY --from=builder /app/node_modules ./node_modules
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/lib ./lib
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/package.json ./package.json
-COPY --from=builder /app/ecosystem.config.js ./ecosystem.config.js
-COPY --from=builder /app/next.config.mjs ./next.config.mjs
-COPY --from=builder /app/socket-server.ts ./socket-server.ts
-COPY --from=builder /app/tsconfig.json ./tsconfig.json
+
+# Set the correct permission for prerender cache
+RUN mkdir .next
+RUN chown nextjs:nodejs .next
+
+# Automatically leverage output traces to reduce image size
+# https://nextjs.org/docs/advanced-features/output-file-tracing
+# server.js is created by next build from the standalone output
+# https://nextjs.org/docs/pages/api-reference/next-config-js/output
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/dist/socket-server.js ./socket-server.js
+COPY --from=builder --chown=nextjs:nodejs /app/deploy/ecosystem.config.js ./ecosystem.config.js
+
+RUN npm i pm2@5.4.1 -g
+
+USER nextjs
 
 EXPOSE 3000
 EXPOSE 88
 
 ENV PORT 3000
 
-RUN npm i pm2 -g
 
-CMD ["sh", "-c", "ls && pm2-runtime start ecosystem.config.js"]
+CMD ls -la && pm2-runtime start ecosystem.config.js

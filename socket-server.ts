@@ -5,27 +5,36 @@ import { DEFAULTS } from "@/upload/constants/defaults";
 import { createServer } from "node:http";
 import { Server } from "socket.io";
 
-const hostname = "0.0.0.0";
+if (require.main === module) {
+  console.log(`Starting socket server...`);
+  createSocketServer();
+}
 
-const httpServer = createServer();
+export function createSocketServer() {
+  const hostname = "0.0.0.0";
 
-new SocketServer(
-  new Server(httpServer, {
-    maxHttpBufferSize: DEFAULTS.maxChunkSize,
-    cors: {
-      origin: "*",
-    },
-  }),
-  uploadActions
-);
+  const httpServer = createServer();
 
-httpServer
-  .once("error", (err) => {
-    console.error(err);
-    process.exit(1);
-  })
-  .listen(WEBSOCKET_PORT, () => {
-    console.log(
-      `> Socket server is ready on http://${hostname}:${WEBSOCKET_PORT}`
-    );
-  });
+  new SocketServer(
+    new Server(httpServer, {
+      maxHttpBufferSize: DEFAULTS.maxChunkSize,
+      cors: {
+        origin: "*",
+      },
+    }),
+    uploadActions
+  );
+
+  httpServer
+    .once("error", (err) => {
+      console.error(err);
+      process.exit(1);
+    })
+    .listen(WEBSOCKET_PORT, () => {
+      console.log(
+        `> Socket server is ready on http://${hostname}:${WEBSOCKET_PORT}`
+      );
+    });
+}
+
+export {};

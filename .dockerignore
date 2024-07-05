@@ -7,3 +7,6 @@ README.md
 .git
 .vscode
 tests
+dist
+.github
+.vscode

@@ -6,7 +6,9 @@ on:
       - main
 
 env:
-  pm2Version: 5.4.1
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.actor }}/large-file-upload:latest
+  DOCKERFILE: ./deploy/Dockerfile
 
 jobs:
   test:
@@ -39,18 +41,27 @@ jobs:
       - run: pnpm -v
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
-  deploy:
-    env:
-      repo: https://github.com/${{ github.repository }}
-      branch: main
-      dir: /home/nextjs-large-file-upload
+  publish:
+    name: Publish Image
     runs-on: ubuntu-latest
+
     steps:
-      - name: Use the environment secret
-        run: echo ${{ secrets.VPS_HOST }}
-      - name: Use the default environment variables
-        run: echo ${{ env.branch }} ${{ env.repo }} ${{ env.dir }}
-      - name: Deploy to VPS
+      - uses: actions/checkout@v3
+      - name: Login
+        run: |
+          echo ${{ secrets.PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      - name: Build and Push Image
+        run: |
+          docker build . -f ${{ env.DOCKERFILE }} -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+  deploy:
+    needs: publish
+    name: Deploy Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Kubernetes
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -58,25 +69,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            node -v
-
-            # git reset
-            mkdir -p ${{ env.dir }}
-            cd ${{ env.dir }}
-            git init
-            git remote add origin ${{ env.repo }}
-            git fetch --all
-            git reset --hard origin/${{ env.branch }}
-
-            # install depencencies
-            corepack enable pnpm
-            corepack install
-            pnpm -v
-            pnpm install --frozen-lockfile
-
-            # start pm2
-            pnpm run build
-            npm install -g pm2@${{ env.pm2Version }}
-            pm2 start
-            pm2 ls
-            pm2 logs --lines 10 --nostream
+            cd ${{ secrets.VPS_WORK_DIR }} 
+            docker compose pull
+            docker compose up -d
+            exit

@@ -3,18 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "run-p dev:next start:socket-server",
+    "dev": "run-p dev:next dev:socket-server",
     "dev:next": "next dev",
-    "build": "next build",
-    "start": "run-p start:next start:socket-server",
-    "start:next": "next start",
-    "start:socket-server": "cross-env NODE_ENV=production tsx watch -r tsconfig-paths/register ./socket-server.ts",
+    "dev:socket-server": "tsx watch -r tsconfig-paths/register socket-server.ts",
+    "build": "run-p build:next build:socket-server",
+    "build:next": "next build",
+    "build:socket-server": "tsup socket-server.ts",
     "lint": "next lint",
     "test": "vitest",
     "gen:git-log-file": "mkdirp public && echo '' > public/git.log",
     "prepare": "pnpm gen:git-log-file"
   },
   "dependencies": {
+    "@esbuild-plugins/tsconfig-paths": "^0.1.2",
     "@radix-ui/react-icons": "^1.3.0",
     "@radix-ui/react-label": "^2.1.0",
     "@radix-ui/react-popover": "^1.1.1",
@@ -71,6 +72,7 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "tsconfig-paths": "^4.2.0",
+    "tsup": "^8.1.0",
     "tsx": "^4.16.0",
     "typescript": "^5",
     "vitest": "^1.6.0"
