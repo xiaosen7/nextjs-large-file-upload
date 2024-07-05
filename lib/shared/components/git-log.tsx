@@ -10,7 +10,7 @@ export const GitLog: React.FC<{}> = (props) => {
 
   useEffect(() => {
     fetch("/git.log")
-      .then((res) => res.text())
+      .then((res) => (res.status === 200 ? res.text() : ""))
       .then(setLog);
   }, []);
   return mp(
